@@ -298,6 +298,11 @@ table.data-table {
   color: #6b7280;
 }
 
+.badge-danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
 .form-error {
   background: var(--danger-bg);
   color: var(--danger);
@@ -321,4 +326,79 @@ table.data-table {
   font-size: 0.875rem;
   padding: 24px 0;
   text-align: center;
+}
+
+/* ---- Recibo / factura imprimibles ---- */
+
+.recibo {
+  max-width: 420px;
+  margin: 0 auto;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  font-size: 0.875rem;
+}
+
+.recibo h1 {
+  font-size: 1.125rem;
+  margin: 0 0 4px;
+}
+
+.recibo .recibo-meta {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin: 0 0 16px;
+}
+
+.recibo hr {
+  border: none;
+  border-top: 1px dashed var(--border);
+  margin: 16px 0;
+}
+
+.recibo .recibo-fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.recibo .recibo-total {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 1rem;
+  margin-top: 8px;
+}
+
+.recibo .recibo-politica {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.75rem;
+  margin-top: 16px;
+}
+
+.print-actions {
+  max-width: 420px;
+  margin: 16px auto 0;
+  display: flex;
+  gap: 8px;
+}
+
+@media print {
+  .app-nav,
+  .print-actions {
+    display: none !important;
+  }
+  .app-main {
+    padding: 0;
+    max-width: none;
+  }
+  .recibo {
+    border: none;
+    box-shadow: none;
+    margin: 0;
+  }
 }

@@ -12,6 +12,8 @@ export async function AppNav() {
   return (
     <nav className="app-nav">
       <Link href="/dashboard">Inicio</Link>
+      <Link href="/ingreso">Nuevo ingreso</Link>
+      <Link href="/reparaciones">Reparaciones</Link>
       <Link href="/clientes">Clientes</Link>
       <Link href="/equipos">Equipos</Link>
       {session?.user.rol === 'DUENO' ? <Link href="/tecnicos">Técnicos</Link> : null}
