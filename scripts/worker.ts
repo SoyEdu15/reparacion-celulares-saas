@@ -26,7 +26,7 @@ const notificacionesWorker = new Worker<NotificacionJobData>(
   'notificaciones',
   async (job) => {
     const { mensajeLogId } = job.data;
-    const mensaje = await dbAdmin.mensajeLog.findUniqueOrThrow({
+    const mensaje = await dbAdmin.mensajeLog.findUnique({
       where: { id: mensajeLogId },
       include: {
         reparacion: { include: { cliente: true, equipo: true } },
@@ -34,6 +34,12 @@ const notificacionesWorker = new Worker<NotificacionJobData>(
       },
     });
 
+    // El registro pudo haber sido borrado (ej. limpieza de datos de prueba)
+    // entre encolar y procesar — no hay nada que reintentar en ese caso.
+    if (!mensaje) {
+      console.warn(`[worker] mensaje_log ${mensajeLogId} ya no existe, se omite`);
+      return;
+    }
     if (mensaje.estado === 'ENVIADO') return;
 
     const datosPlantilla = {
