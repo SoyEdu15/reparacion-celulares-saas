@@ -1,6 +1,14 @@
 import { withTenant } from '@/lib/rls';
 import { ESTADOS_ORDEN } from '@/lib/estados-reparacion';
 
+export type GarantiaPorVencer = {
+  id: string;
+  numeroOrden: number;
+  clienteNombre: string;
+  equipo: string;
+  fechaFinGarantia: Date;
+};
+
 export type Metricas = {
   porEstado: { estado: string; cantidad: number }[];
   tiempoPromedioDias: number | null;
@@ -9,15 +17,19 @@ export type Metricas = {
   totalClientes: number;
   totalReparaciones: number;
   abandonadas: number;
+  garantiasPorVencer: GarantiaPorVencer[];
 };
 
-/** Dashboard del dueño (sección 9, Fase 4): ingresos y tiempo promedio de reparación. */
+const DIAS_ALERTA_GARANTIA = 7;
+
+/** Dashboard del dueño (sección 9, Fase 4): ingresos, tiempo promedio y alertas de garantía por vencer. */
 export async function obtenerMetricas(tenantId: string): Promise<Metricas> {
   const ahora = new Date();
   const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+  const limiteAlertaGarantia = new Date(ahora.getTime() + DIAS_ALERTA_GARANTIA * 24 * 60 * 60 * 1000);
 
   return withTenant(tenantId, async (tx) => {
-    const [grupoPorEstado, entregadas, facturasMes, totalClientes, totalReparaciones, abandonadas] =
+    const [grupoPorEstado, entregadas, facturasMes, totalClientes, totalReparaciones, abandonadas, garantiasPorVencerRaw] =
       await Promise.all([
         tx.reparacion.groupBy({ by: ['estado'], _count: { _all: true } }),
         tx.reparacion.findMany({
@@ -32,7 +44,26 @@ export async function obtenerMetricas(tenantId: string): Promise<Metricas> {
         tx.cliente.count(),
         tx.reparacion.count(),
         tx.reparacion.count({ where: { marcadoAbandonado: true } }),
+        tx.reparacion.findMany({
+          where: { fechaFinGarantia: { gte: ahora, lte: limiteAlertaGarantia } },
+          orderBy: { fechaFinGarantia: 'asc' },
+          select: {
+            id: true,
+            numeroOrden: true,
+            fechaFinGarantia: true,
+            cliente: { select: { nombre: true } },
+            equipo: { select: { marca: true, modelo: true } },
+          },
+        }),
       ]);
+
+    const garantiasPorVencer: GarantiaPorVencer[] = garantiasPorVencerRaw.map((r) => ({
+      id: r.id,
+      numeroOrden: r.numeroOrden,
+      clienteNombre: r.cliente.nombre,
+      equipo: `${r.equipo.marca} ${r.equipo.modelo}`,
+      fechaFinGarantia: r.fechaFinGarantia!,
+    }));
 
     const tiempoPromedioDias =
       entregadas.length > 0
@@ -52,6 +83,7 @@ export async function obtenerMetricas(tenantId: string): Promise<Metricas> {
       totalClientes,
       totalReparaciones,
       abandonadas,
+      garantiasPorVencer,
     };
   });
 }
