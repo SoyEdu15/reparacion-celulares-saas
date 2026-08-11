@@ -51,9 +51,23 @@ async function upsertTenant(subdominio: string, nombreComercial: string) {
   return { tenant, dueno, tecnico, cliente };
 }
 
+async function upsertSuperAdmin() {
+  const passwordHash = await hash('password123');
+  return dbAdmin.superAdmin.upsert({
+    where: { email: 'admin@plataforma.test' },
+    update: {},
+    create: {
+      email: 'admin@plataforma.test',
+      nombre: 'Super Admin',
+      passwordHash,
+    },
+  });
+}
+
 async function main() {
   const t1 = await upsertTenant('tallerdemo1', 'Taller Demo 1');
   const t2 = await upsertTenant('tallerdemo2', 'Taller Demo 2');
+  const superAdmin = await upsertSuperAdmin();
 
   console.log('Tenants de prueba creados:');
   for (const { tenant, dueno, tecnico, cliente } of [t1, t2]) {
@@ -63,6 +77,9 @@ async function main() {
     console.log(`  técnico: ${tecnico.email} / password123`);
     console.log(`  cliente de prueba: ${cliente.nombre} (${cliente.id})`);
   }
+
+  console.log(`\nPanel de super-admin — http://admin.localhost:3000/login`);
+  console.log(`  ${superAdmin.email} / password123`);
 }
 
 main()
