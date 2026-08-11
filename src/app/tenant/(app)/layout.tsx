@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth/tenant-auth';
+import { AppNav } from '@/components/tenant/app-nav';
 
 /**
  * Gate del Paso 2: sin sesión, todo lo que cuelga de este layout redirige
@@ -13,5 +14,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   if (!session?.user) {
     redirect('/login');
   }
-  return <>{children}</>;
+  return (
+    <div className="app-shell">
+      <AppNav />
+      <main className="app-main">{children}</main>
+    </div>
+  );
 }
