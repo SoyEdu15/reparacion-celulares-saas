@@ -18,6 +18,7 @@ export async function AppNav() {
       <Link href="/equipos">Equipos</Link>
       {session?.user.rol === 'DUENO' ? <Link href="/tecnicos">Técnicos</Link> : null}
       {session?.user.rol === 'DUENO' ? <Link href="/configuracion">Configuración</Link> : null}
+      {session?.user.rol === 'DUENO' ? <Link href="/reportes">Reportes</Link> : null}
       <div className="app-nav-spacer" />
       <Link href="/perfil" className="app-nav-user">
         {session?.user.name} ({session?.user.rol})
