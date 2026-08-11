@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import type { EstadoTenant } from '@prisma/client';
 import { hash } from '@node-rs/argon2';
 import { dbAdmin } from '@/lib/db';
@@ -67,4 +68,23 @@ export async function crearDuenoParaTenant(tenantId: string, data: { nombre: str
   return dbAdmin.usuario.create({
     data: { tenantId, rol: 'DUENO', nombre: data.nombre, email: data.email, passwordHash },
   });
+}
+
+function generarPasswordTemporal(): string {
+  // Legible para dictar/copiar a mano: sin caracteres ambiguos (0/O, 1/l/I).
+  const alfabeto = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  const bytes = randomBytes(12);
+  return Array.from(bytes, (b) => alfabeto[b % alfabeto.length]).join('');
+}
+
+/**
+ * Único mecanismo de recuperación hoy: si un dueño o técnico queda
+ * bloqueado por olvido de contraseña, el super-admin genera una temporal
+ * acá. No hay flujo de "olvidé mi contraseña" por email todavía.
+ */
+export async function restablecerPasswordUsuario(usuarioId: string): Promise<string> {
+  const passwordTemporal = generarPasswordTemporal();
+  const passwordHash = await hash(passwordTemporal);
+  await dbAdmin.usuario.update({ where: { id: usuarioId }, data: { passwordHash } });
+  return passwordTemporal;
 }

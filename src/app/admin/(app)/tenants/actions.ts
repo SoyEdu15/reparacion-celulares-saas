@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client';
 import type { EstadoTenant } from '@prisma/client';
 import { requireSuperAdmin } from '@/lib/auth/admin-guards';
 import { crearTenantSchema, crearDuenoSchema } from '@/lib/validation/tenant';
-import { crearTenant, cambiarEstadoTenant, crearDuenoParaTenant } from '@/server/services/admin-tenants';
+import { crearTenant, cambiarEstadoTenant, crearDuenoParaTenant, restablecerPasswordUsuario } from '@/server/services/admin-tenants';
 import { registrarAuditoriaAdmin } from '@/server/services/audit-log-admin';
 
 function esSubdominioDuplicado(error: unknown): boolean {
@@ -80,6 +80,23 @@ export async function crearDuenoAction(formData: FormData) {
 
   revalidatePath(`/tenants/${parsed.data.tenantId}`);
   redirect(`/tenants/${parsed.data.tenantId}`);
+}
+
+/**
+ * Único mecanismo de recuperación hoy (ver nota en admin-tenants.ts):
+ * genera una contraseña temporal y la muestra una sola vez en la URL de
+ * vuelta. No se guarda el valor en texto plano en ningún lado (ni en el
+ * log de auditoría, que solo registra que ocurrió el reseteo).
+ */
+export async function restablecerPasswordAction(formData: FormData) {
+  const admin = await requireSuperAdmin();
+  const tenantId = formData.get('tenantId') as string;
+  const usuarioId = formData.get('usuarioId') as string;
+
+  const passwordTemporal = await restablecerPasswordUsuario(usuarioId);
+  await registrarAuditoriaAdmin(admin.superAdminId, 'restablecer_password', tenantId, { usuarioId });
+
+  redirect(`/tenants/${tenantId}?passwordTemporal=${encodeURIComponent(passwordTemporal)}`);
 }
 
 export async function cambiarEstadoAction(formData: FormData) {

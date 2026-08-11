@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireSuperAdmin } from '@/lib/auth/admin-guards';
 import { obtenerTenant } from '@/server/services/admin-tenants';
-import { cambiarEstadoAction, crearDuenoAction } from '../actions';
+import { cambiarEstadoAction, crearDuenoAction, restablecerPasswordAction } from '../actions';
 
 function formatoFecha(fecha: Date): string {
   return new Date(fecha).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' });
@@ -12,10 +12,10 @@ export default async function TenantDetallePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; passwordTemporal?: string }>;
 }) {
   await requireSuperAdmin();
-  const [{ id }, { error }] = await Promise.all([params, searchParams]);
+  const [{ id }, { error, passwordTemporal }] = await Promise.all([params, searchParams]);
   const tenant = await obtenerTenant(id);
 
   if (!tenant) {
@@ -32,6 +32,12 @@ export default async function TenantDetallePage({
       </div>
 
       {error ? <p className="form-error">{error}</p> : null}
+      {passwordTemporal ? (
+        <p className="form-success">
+          Contraseña temporal generada: <strong style={{ fontFamily: 'monospace' }}>{passwordTemporal}</strong>{' '}
+          — pásasela al usuario ahora, no queda guardada en ningún lado y esta página no la vuelve a mostrar.
+        </p>
+      ) : null}
 
       <div className="card">
         <h2>Estado de la suscripción</h2>
@@ -134,6 +140,7 @@ export default async function TenantDetallePage({
               <th>Email</th>
               <th>Rol</th>
               <th>Estado</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -146,6 +153,15 @@ export default async function TenantDetallePage({
                   <span className={`badge ${u.activo ? 'badge-activo' : 'badge-inactivo'}`}>
                     {u.activo ? 'Activo' : 'Inactivo'}
                   </span>
+                </td>
+                <td>
+                  <form action={restablecerPasswordAction}>
+                    <input type="hidden" name="tenantId" value={tenant.id} />
+                    <input type="hidden" name="usuarioId" value={u.id} />
+                    <button type="submit" className="btn btn-secondary">
+                      Restablecer contraseña
+                    </button>
+                  </form>
                 </td>
               </tr>
             ))}
