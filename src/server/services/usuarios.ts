@@ -1,4 +1,4 @@
-import { hash } from '@node-rs/argon2';
+import { hash, verify } from '@node-rs/argon2';
 import { withTenant } from '@/lib/rls';
 
 export function listarUsuarios(tenantId: string) {
@@ -43,6 +43,32 @@ export async function editarUsuario(
       },
     }),
   );
+}
+
+/**
+ * Cambio de contraseña por el propio usuario (dueño o técnico) — exige la
+ * contraseña actual para confirmar que quien la cambia es el dueño de la
+ * cuenta, no solo alguien con la sesión abierta en el equipo.
+ */
+export async function cambiarPasswordPropia(
+  tenantId: string,
+  usuarioId: string,
+  passwordActual: string,
+  passwordNueva: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const usuario = await withTenant(tenantId, (tx) => tx.usuario.findUnique({ where: { id: usuarioId } }));
+  if (!usuario) {
+    return { ok: false, error: 'Usuario no encontrado' };
+  }
+
+  const valida = await verify(usuario.passwordHash, passwordActual);
+  if (!valida) {
+    return { ok: false, error: 'La contraseña actual no es correcta' };
+  }
+
+  const passwordHash = await hash(passwordNueva);
+  await withTenant(tenantId, (tx) => tx.usuario.update({ where: { id: usuarioId }, data: { passwordHash } }));
+  return { ok: true };
 }
 
 /**

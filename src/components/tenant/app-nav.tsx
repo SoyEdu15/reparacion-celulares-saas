@@ -19,9 +19,9 @@ export async function AppNav() {
       {session?.user.rol === 'DUENO' ? <Link href="/tecnicos">Técnicos</Link> : null}
       {session?.user.rol === 'DUENO' ? <Link href="/configuracion">Configuración</Link> : null}
       <div className="app-nav-spacer" />
-      <span className="app-nav-user">
+      <Link href="/perfil" className="app-nav-user">
         {session?.user.name} ({session?.user.rol})
-      </span>
+      </Link>
       <form action={logout}>
         <button type="submit" className="btn btn-secondary">
           Salir
