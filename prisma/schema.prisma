@@ -1,0 +1,610 @@
+// ============================================================================
+// Schema Fase 1 — Núcleo operativo
+// SaaS Multi-tenant de Gestión de Reparaciones de Celulares
+//
+// Notas de arquitectura importantes (léase antes de revisar los modelos):
+//
+// 1. RLS (Row-Level Security): Prisma no tiene DSL para RLS. Este schema define
+//    tablas y columnas; las políticas RLS se agregan con SQL crudo en una
+//    migración adicional (`prisma migrate dev --create-only` + editar el .sql).
+//    Cada tabla con tenant_id lleva:
+//      ALTER TABLE "x" ENABLE ROW LEVEL SECURITY;
+//      ALTER TABLE "x" FORCE ROW LEVEL SECURITY;
+//      CREATE POLICY tenant_isolation ON "x"
+//        USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
+//    La app se conecta con un rol Postgres de bajo privilegio (`app_tenant`)
+//    al que se le hace `SET LOCAL app.tenant_id = '<uuid>'` al inicio de
+//    cada transacción (helper en lib/rls.ts). Un segundo rol (`app_admin`),
+//    con BYPASSRLS, se usa solo para: panel super-admin, jobs cross-tenant
+//    (recordatorios de custodia, purga de PIN) y la resolución de subdominio
+//    del Paso 1 del login (que corre ANTES de tener un tenant_id resuelto).
+//    Ningún tenant_id llega desde el cliente/frontend: siempre se resuelve
+//    en el middleware (Paso 1 del login) y se guarda en sesión.
+//
+// 2. Todos los nombres de tabla y columna están mapeados a snake_case
+//    (@@map / @map) aunque los campos del modelo Prisma sean camelCase.
+//    Esto es deliberado: el SQL crudo de RLS, cualquier query directa por
+//    fuera de Prisma (reportes, DBA, herramientas externas) y la convención
+//    estándar de Postgres esperan snake_case en la base de datos real.
+//
+// 3. Numeración consecutiva por tenant (órdenes y facturas): no existe una
+//    forma nativa de tener una secuencia Postgres por fila de tenant, así que
+//    se usan contadores en Tenant (ultimoNumeroOrden/ultimoNumeroFactura)
+//    incrementados con UPDATE ... RETURNING dentro de la misma transacción
+//    que crea la Reparacion/Factura, garantizando consecutivos sin huecos
+//    bajo concurrencia.
+//
+// 4. Supuestos agregados más allá del documento original (avisar si alguno
+//    no aplica):
+//    - TipoReparacion: catálogo por tenant para poder activar/editar
+//      garantía "por tipo de reparación" (sección 4.4) — no estaba en el
+//      modelo de datos original de la sección 6.
+//    - CanalAprobacion: enum opcional en Reparacion para registrar cómo
+//      aprobó el cliente (llamada/WhatsApp/presencial), complementa
+//      presupuesto_aprobado_por/en.
+//    - CredencialTenant: tabla para credenciales cifradas de WhatsApp/
+//      email/pasarela de pago por tenant (sección 7 lo exige, no estaba
+//      listada explícitamente en la sección 6).
+//    - SuperAdmin / AuditLogAdmin: tablas separadas para el login y el log
+//      de auditoría del super-admin (sección 3, 7).
+//    - diasCustodiaGratisAplicado en Reparacion: snapshot del valor del
+//      tenant al momento de creación, para no afectar retroactivamente
+//      órdenes ya creadas si el dueño cambia la política después.
+//
+// 5. Todos los montos son Int (COP, sin decimales). Todas las tablas de
+//    negocio llevan tenantId no nulo e índices (tenantId, columna-más-usada).
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ----------------------------------------------------------------------------
+// Enums
+// ----------------------------------------------------------------------------
+
+enum EstadoTenant {
+  ACTIVO
+  MOROSO
+  SUSPENDIDO
+}
+
+enum RolUsuario {
+  DUENO
+  TECNICO
+}
+
+enum EstadoReparacion {
+  RECIBIDO
+  ESPERANDO_TECNICO
+  DIAGNOSTICO
+  ESPERANDO_APROBACION_CLIENTE
+  REPARANDO
+  TESTEO
+  LISTO_PARA_ENTREGA
+  ENTREGADO
+  NO_REPARABLE
+  CANCELADO
+}
+
+enum CanalAprobacion {
+  LLAMADA
+  WHATSAPP
+  PRESENCIAL
+  OTRO
+}
+
+enum TipoPin {
+  PIN
+  PATRON
+  CONTRASENA
+  OTRO
+}
+
+enum CanalNotificacion {
+  WHATSAPP
+  EMAIL
+}
+
+enum EstadoMensaje {
+  PENDIENTE
+  ENVIADO
+  FALLIDO
+}
+
+enum PlantillaFactura {
+  CLASICA
+  MODERNA
+  MINIMALISTA
+}
+
+enum FormatoFactura {
+  TERMICO_58MM
+  TERMICO_80MM
+  CARTA_A4
+}
+
+enum EstadoPagoSuscripcion {
+  PENDIENTE
+  PAGADO
+  FALLIDO
+  VENCIDO
+}
+
+// ----------------------------------------------------------------------------
+// Tenant y configuración
+// ----------------------------------------------------------------------------
+
+model Tenant {
+  id     String       @id @default(uuid())
+  estado EstadoTenant @default(ACTIVO)
+
+  // Identificación / resolución de subdominio (Paso 1 del login)
+  subdominio String @unique
+
+  // Datos comerciales (configurables por el dueño, sección 5)
+  nombreComercial String? @map("nombre_comercial")
+  nit             String?
+  direccion       String?
+  telefono        String?
+  logoUrl         String? @map("logo_url")
+
+  // Contacto de soporte de la plataforma, para la pantalla de moroso/suspendido
+  whatsappContactoSoporte String? @map("whatsapp_contacto_soporte")
+
+  // Custodia / bodegaje / abandono (sección 4.3)
+  diasCustodiaGratis        Int @default(15) @map("dias_custodia_gratis")
+  tarifaBodegajeDiaria      Int @default(0) @map("tarifa_bodegaje_diaria")
+  intervaloRecordatorioDias Int @default(3) @map("intervalo_recordatorio_dias")
+  diasLimiteAbandono        Int @default(90) @map("dias_limite_abandono")
+
+  // Garantía (sección 4.4)
+  garantiaActiva      Boolean @default(false) @map("garantia_activa")
+  diasGarantiaDefault Int     @default(30) @map("dias_garantia_default")
+
+  // Canales de notificación activos (sección 4.2, independientes entre sí)
+  whatsappActivo Boolean @default(false) @map("whatsapp_activo")
+  emailActivo    Boolean @default(false) @map("email_activo")
+
+  // PIN/patrón — purga automática (sección 7.1). Null = sin purga automática.
+  diasPurgaPin Int? @map("dias_purga_pin")
+
+  // Facturación (sección 5)
+  plantillaFacturaDefault PlantillaFactura @default(CLASICA) @map("plantilla_factura_default")
+  formatoFacturaDefault   FormatoFactura   @default(TERMICO_80MM) @map("formato_factura_default")
+  piePaginaFactura        String?          @map("pie_pagina_factura") @db.Text
+  remitenteEmailFacturas  String?          @map("remitente_email_facturas")
+
+  // Contadores para numeración consecutiva por tenant (ver nota de arquitectura #3)
+  ultimoNumeroOrden   Int @default(0) @map("ultimo_numero_orden")
+  ultimoNumeroFactura Int @default(0) @map("ultimo_numero_factura")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  usuarios         Usuario[]
+  clientes         Cliente[]
+  equipos          Equipo[]
+  tiposReparacion  TipoReparacion[]
+  reparaciones     Reparacion[]
+  facturas         Factura[]
+  mensajesLog      MensajeLog[]
+  pagosSuscripcion PagoSuscripcion[]
+  credencial       CredencialTenant?
+  auditLogsAdmin   AuditLogAdmin[]
+
+  @@map("tenants")
+}
+
+// Credenciales de integraciones por tenant (sección 7): cifradas en la app
+// antes de guardarse (clave distinta a la del PIN). Nunca se leen en texto
+// plano fuera del proveedor correspondiente (WhatsappProvider/EmailProvider/
+// PaymentProvider).
+model CredencialTenant {
+  id       String @id @default(uuid())
+  tenantId String @unique @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  whatsappCredencialesCifradas String? @map("whatsapp_credenciales_cifradas") @db.Text
+  emailCredencialesCifradas    String? @map("email_credenciales_cifradas") @db.Text
+  pagoCredencialesCifradas     String? @map("pago_credenciales_cifradas") @db.Text
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("credenciales_tenant")
+}
+
+// ----------------------------------------------------------------------------
+// Super-admin (subdominio admin.tuapp.com, autenticación separada)
+// ----------------------------------------------------------------------------
+
+model SuperAdmin {
+  id           String  @id @default(uuid())
+  email        String  @unique
+  passwordHash String  @map("password_hash")
+  nombre       String
+  activo       Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  auditLogs AuditLogAdmin[]
+
+  @@map("super_admins")
+}
+
+// Log de auditoría de acciones de super-admin (sección 7): alta/suspensión de
+// tenants, cambios de configuración sensible, accesos. tenantId es opcional
+// porque hay acciones globales (ej. login) que no apuntan a un tenant.
+model AuditLogAdmin {
+  id           String     @id @default(uuid())
+  superAdminId String     @map("super_admin_id")
+  superAdmin   SuperAdmin @relation(fields: [superAdminId], references: [id])
+  tenantId     String?    @map("tenant_id")
+  tenant       Tenant?    @relation(fields: [tenantId], references: [id])
+
+  accion  String
+  detalle Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([superAdminId])
+  @@index([tenantId])
+  @@map("audit_logs_admin")
+}
+
+// ----------------------------------------------------------------------------
+// Usuarios del tenant (dueño / técnico)
+// ----------------------------------------------------------------------------
+
+model Usuario {
+  id           String     @id @default(uuid())
+  tenantId     String     @map("tenant_id")
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rol          RolUsuario
+  nombre       String
+  email        String
+  passwordHash String     @map("password_hash")
+  activo       Boolean    @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relaciones inversas de auditoría de Reparacion (quién hizo qué)
+  equiposRecibidos           Reparacion[]      @relation("RecibidoPor")
+  reparacionesDiagnosticadas Reparacion[]      @relation("DiagnosticadoPor")
+  reparacionesAsignadas      Reparacion[]      @relation("TecnicoAsignado")
+  reparacionesReparadas      Reparacion[]      @relation("ReparadoPor")
+  presupuestosAprobados      Reparacion[]      @relation("PresupuestoAprobadoPor")
+  cambiosEstado              HistorialEstado[] @relation("UsuarioCambioEstado")
+  fotosSubidas               FotoEquipo[]      @relation("SubidoPor")
+  pinesPurgados              PinDesbloqueo[]   @relation("PurgadoPor")
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("usuarios")
+}
+
+// ----------------------------------------------------------------------------
+// Clientes y equipos
+// ----------------------------------------------------------------------------
+
+model Cliente {
+  id       String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  nombre   String
+  telefono String
+  cedula   String?
+  email    String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  equipos      Equipo[]
+  reparaciones Reparacion[]
+
+  @@index([tenantId, telefono])
+  @@index([tenantId, cedula])
+  @@map("clientes")
+}
+
+model Equipo {
+  id        String  @id @default(uuid())
+  tenantId  String  @map("tenant_id")
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clienteId String  @map("cliente_id")
+  cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  marca  String
+  modelo String
+  color  String?
+  imei   String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  reparaciones Reparacion[]
+
+  @@index([tenantId, clienteId])
+  @@index([tenantId, imei])
+  @@map("equipos")
+}
+
+// Catálogo por tenant para poder activar/editar garantía "por tipo de
+// reparación" (sección 4.4). Supuesto agregado — ver nota de arquitectura #4.
+model TipoReparacion {
+  id       String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  nombre         String
+  garantiaActiva Boolean @default(true) @map("garantia_activa")
+  diasGarantia   Int?    @map("dias_garantia")
+  activo         Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  reparaciones Reparacion[]
+
+  @@unique([tenantId, nombre])
+  @@map("tipos_reparacion")
+}
+
+// ----------------------------------------------------------------------------
+// Reparaciones (el corazón del sistema — sección 4)
+// ----------------------------------------------------------------------------
+
+model Reparacion {
+  id       String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  clienteId String  @map("cliente_id")
+  cliente   Cliente @relation(fields: [clienteId], references: [id])
+  equipoId  String  @map("equipo_id")
+  equipo    Equipo  @relation(fields: [equipoId], references: [id])
+
+  tipoReparacionId String?         @map("tipo_reparacion_id")
+  tipoReparacion   TipoReparacion? @relation(fields: [tipoReparacionId], references: [id])
+
+  numeroOrden Int              @map("numero_orden") // consecutivo por tenant (ver Tenant.ultimoNumeroOrden)
+  estado      EstadoReparacion @default(RECIBIDO)
+
+  // Ingreso (sección 4.1) — lo que reporta el cliente, no verificado aún
+  danosReportados String  @map("danos_reportados") @db.Text
+  estadoFisico    String? @map("estado_fisico") @db.Text
+
+  fechaRecibido DateTime @default(now()) @map("fecha_recibido")
+  recibidoPorId String   @map("recibido_por_id")
+  recibidoPor   Usuario  @relation("RecibidoPor", fields: [recibidoPorId], references: [id])
+
+  // Cola de espera (sección 4.2)
+  tecnicoAsignadoId String?   @map("tecnico_asignado_id")
+  tecnicoAsignado   Usuario?  @relation("TecnicoAsignado", fields: [tecnicoAsignadoId], references: [id])
+  tecnicoAsignadoEn DateTime? @map("tecnico_asignado_en")
+
+  // Diagnóstico — nunca se salta, incluso con presupuesto previo
+  diagnosticoTexto   String?   @map("diagnostico_texto") @db.Text
+  diagnosticadoPorId String?   @map("diagnosticado_por_id")
+  diagnosticadoPor   Usuario?  @relation("DiagnosticadoPor", fields: [diagnosticadoPorId], references: [id])
+  diagnosticadoEn    DateTime? @map("diagnosticado_en")
+
+  // Presupuesto y aprobación (sección 4.2 — dos caminos)
+  presupuestoEstimado         Int?             @map("presupuesto_estimado") // dado en el ingreso, opcional
+  presupuestoEstimadoAceptado Boolean          @default(false) @map("presupuesto_estimado_aceptado") // aceptado por el cliente en el ingreso
+  presupuestoFinal            Int?             @map("presupuesto_final") // cotizado/recotizado tras diagnóstico
+  presupuestoAprobadoEn       DateTime?        @map("presupuesto_aprobado_en")
+  presupuestoAprobadoPorId    String?          @map("presupuesto_aprobado_por_id")
+  presupuestoAprobadoPor      Usuario?         @relation("PresupuestoAprobadoPor", fields: [presupuestoAprobadoPorId], references: [id])
+  canalAprobacion             CanalAprobacion? @map("canal_aprobacion")
+
+  fechaEstimadaEntrega DateTime? @map("fecha_estimada_entrega")
+
+  // Custodia — snapshot al momento de creación (sección 4.3, no retroactivo)
+  diasCustodiaGratisAplicado Int       @map("dias_custodia_gratis_aplicado")
+  fechaLimiteCustodia        DateTime? @map("fecha_limite_custodia")
+
+  // Entrega
+  reparadoPorId    String?   @map("reparado_por_id")
+  reparadoPor      Usuario?  @relation("ReparadoPor", fields: [reparadoPorId], references: [id])
+  fechaEntregaReal DateTime? @map("fecha_entrega_real")
+
+  // Garantía (sección 4.4)
+  diasGarantia          Int?         @map("dias_garantia")
+  fechaFinGarantia       DateTime?   @map("fecha_fin_garantia")
+  esReclamoGarantiaDeId  String?     @map("es_reclamo_garantia_de_id")
+  esReclamoGarantiaDe    Reparacion? @relation("ReclamoGarantia", fields: [esReclamoGarantiaDeId], references: [id])
+  reclamosGarantia       Reparacion[] @relation("ReclamoGarantia")
+
+  // Abandono (sección 4.3) — el sistema solo señala, no actúa
+  marcadoAbandonado   Boolean   @default(false) @map("marcado_abandonado")
+  marcadoAbandonadoEn DateTime? @map("marcado_abandonado_en")
+
+  // Habeas Data (sección 4.1 / 7) — obligatorio para crear la orden
+  consentimientoDatosAceptadoEn DateTime @map("consentimiento_datos_aceptado_en")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  historialEstados HistorialEstado[]
+  fotos            FotoEquipo[]
+  pinDesbloqueo    PinDesbloqueo?
+  facturas         Factura[]
+  mensajesLog      MensajeLog[]
+
+  @@unique([tenantId, numeroOrden])
+  @@index([tenantId, estado])
+  @@index([tenantId, fechaRecibido])
+  @@index([tenantId, clienteId])
+  @@index([tenantId, equipoId])
+  @@index([tenantId, marcadoAbandonado])
+  @@map("reparaciones")
+}
+
+// Log de auditoría de cambios de estado (sección 4.2): quién, cuándo, de qué
+// estado a cuál. Es historial append-only, nunca se edita ni se borra.
+model HistorialEstado {
+  id           String     @id @default(uuid())
+  tenantId     String     @map("tenant_id")
+  reparacionId String     @map("reparacion_id")
+  reparacion   Reparacion @relation(fields: [reparacionId], references: [id], onDelete: Cascade)
+
+  estadoAnterior EstadoReparacion? @map("estado_anterior")
+  estadoNuevo    EstadoReparacion  @map("estado_nuevo")
+
+  usuarioId String  @map("usuario_id")
+  usuario   Usuario @relation("UsuarioCambioEstado", fields: [usuarioId], references: [id])
+
+  notaCorta String? @map("nota_corta") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  fotos       FotoEquipo[]
+  mensajesLog MensajeLog[]
+
+  @@index([tenantId, reparacionId])
+  @@map("historial_estados")
+}
+
+// Fotos del equipo: 4 obligatorias al ingreso (esFotoIngreso = true) + 1-4
+// opcionales por cada cambio de estado (historialEstadoId no nulo).
+model FotoEquipo {
+  id           String     @id @default(uuid())
+  tenantId     String     @map("tenant_id")
+  reparacionId String     @map("reparacion_id")
+  reparacion   Reparacion @relation(fields: [reparacionId], references: [id], onDelete: Cascade)
+
+  historialEstadoId String?          @map("historial_estado_id")
+  historialEstado   HistorialEstado? @relation(fields: [historialEstadoId], references: [id])
+  esFotoIngreso     Boolean          @default(false) @map("es_foto_ingreso")
+
+  // Key del objeto en R2 (bucket privado); la URL firmada se genera al vuelo
+  storageKey String @map("storage_key")
+  orden      Int
+
+  subidoPorId String  @map("subido_por_id")
+  subidoPor   Usuario @relation("SubidoPor", fields: [subidoPorId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, reparacionId])
+  @@map("fotos_equipo")
+}
+
+// PIN/patrón de desbloqueo (sección 7.1) — tabla separada a propósito, para
+// poder restringir acceso y aplicar purga sin tocar el resto de Reparacion.
+// valorCifrado se cifra en la app con una clave independiente de la del
+// resto de la base de datos (lib/crypto/pin-encryption.ts), nunca es
+// reversible con un query SQL simple. Sin purga automática por defecto
+// (Tenant.diasPurgaPin = null); purga manual vía purgadoEn/purgadoPorId.
+model PinDesbloqueo {
+  id           String     @id @default(uuid())
+  tenantId     String     @map("tenant_id")
+  reparacionId String     @unique @map("reparacion_id")
+  reparacion   Reparacion @relation(fields: [reparacionId], references: [id], onDelete: Cascade)
+
+  tipo         TipoPin
+  valorCifrado String  @map("valor_cifrado") @db.Text
+
+  consentimientoAceptadoEn DateTime @map("consentimiento_aceptado_en")
+
+  purgadoEn    DateTime? @map("purgado_en")
+  purgadoPorId String?   @map("purgado_por_id")
+  purgadoPor   Usuario?  @relation("PurgadoPor", fields: [purgadoPorId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, reparacionId])
+  @@map("pin_desbloqueo")
+}
+
+// ----------------------------------------------------------------------------
+// Facturación (sección 5) — comprobante interno, detrás de InvoiceProvider
+// ----------------------------------------------------------------------------
+
+model Factura {
+  id           String     @id @default(uuid())
+  tenantId     String     @map("tenant_id")
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reparacionId String     @map("reparacion_id")
+  reparacion   Reparacion @relation(fields: [reparacionId], references: [id])
+
+  numeroFactura Int              @map("numero_factura") // consecutivo por tenant (ver Tenant.ultimoNumeroFactura)
+  plantilla     PlantillaFactura
+  formato       FormatoFactura
+
+  subtotalReparacion   Int @map("subtotal_reparacion")
+  cargoBodegaje        Int @default(0) @map("cargo_bodegaje")
+  diasBodegajeCobrados Int @default(0) @map("dias_bodegaje_cobrados")
+  total                Int
+
+  // Key del PDF generado en R2
+  storageKey String? @map("storage_key")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([tenantId, numeroFactura])
+  @@index([tenantId, reparacionId])
+  @@map("facturas")
+}
+
+// ----------------------------------------------------------------------------
+// Notificaciones (sección 4.2, 4.3) — detrás de NotificationProvider
+// ----------------------------------------------------------------------------
+
+model MensajeLog {
+  id           String     @id @default(uuid())
+  tenantId     String     @map("tenant_id")
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reparacionId String     @map("reparacion_id")
+  reparacion   Reparacion @relation(fields: [reparacionId], references: [id])
+
+  historialEstadoId String?          @map("historial_estado_id")
+  historialEstado   HistorialEstado? @relation(fields: [historialEstadoId], references: [id])
+
+  canal        CanalNotificacion
+  destinatario String
+  estado       EstadoMensaje     @default(PENDIENTE)
+  intentos     Int               @default(0)
+  errorMensaje String?           @map("error_mensaje") @db.Text
+  enviadoEn    DateTime?         @map("enviado_en")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, reparacionId])
+  @@index([tenantId, estado])
+  @@map("mensajes_log")
+}
+
+// ----------------------------------------------------------------------------
+// Cobro de suscripción del tenant (sección 3.1, 9-Fase 3) — PaymentProvider
+// ----------------------------------------------------------------------------
+
+model PagoSuscripcion {
+  id       String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  monto  Int
+  estado EstadoPagoSuscripcion @default(PENDIENTE)
+
+  periodoInicio DateTime @map("periodo_inicio")
+  periodoFin    DateTime @map("periodo_fin")
+
+  referenciaExterna String?   @map("referencia_externa") // id de Stripe/pasarela colombiana
+  pagadoEn          DateTime? @map("pagado_en")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, estado])
+  @@map("pagos_suscripcion")
+}

@@ -1,0 +1,48 @@
+{
+  "name": "reparacion-celulares-saas",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:studio": "prisma studio",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:verify-isolation": "tsx scripts/verify-tenant-isolation.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1107.0",
+    "@aws-sdk/s3-request-presigner": "^3.1107.0",
+    "@node-rs/argon2": "^2.0.2",
+    "@prisma/client": "^6.19.2",
+    "bullmq": "^6.0.11",
+    "ioredis": "^5.4.2",
+    "next": "^16.3.0",
+    "next-auth": "5.0.0-beta.32",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@eslint/eslintrc": "^3.3.6",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.0",
+    "prisma": "^6.19.2",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3"
+  }
+}

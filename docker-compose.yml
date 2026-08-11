@@ -1,0 +1,81 @@
+name: reparacion-celulares
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app_owner
+      POSTGRES_PASSWORD: app_owner_local_pw
+      POSTGRES_DB: reparacion_celulares
+    ports:
+      # 5433, no 5432: en esta máquina ya hay un PostgreSQL nativo de Windows
+      # escuchando en 5432 y se queda con las conexiones del host antes que
+      # el contenedor. Todo el tráfico interno entre contenedores sigue
+      # usando el 5432 normal (el mapeo solo afecta el acceso desde el host).
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_owner -d reparacion_celulares"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Sustituto local S3-compatible de Cloudflare R2. Mismo protocolo, misma
+  # interfaz (@aws-sdk/client-s3) que en producción: solo cambian las
+  # variables de entorno R2_ENDPOINT/credenciales al desplegar.
+  minio:
+    image: minio/minio:RELEASE.2024-08-29T01-40-52Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio_local_admin
+      MINIO_ROOT_PASSWORD: minio_local_pw
+    ports:
+      - "9000:9000" # API S3
+      - "9001:9001" # consola web
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Crea los buckets locales una sola vez y termina (no es un servicio persistente).
+  minio-init:
+    image: minio/mc:RELEASE.2024-08-17T11-33-50Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minio_local_admin minio_local_pw &&
+      mc mb -p local/taller-fotos-equipos &&
+      mc mb -p local/taller-comprobantes &&
+      exit 0
+      "
+
+  # Captura de correos locales (no envía nada real). UI en http://localhost:1080
+  maildev:
+    image: maildev/maildev
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # SMTP
+      - "1080:1080" # UI web
+
+volumes:
+  postgres_data:
+  minio_data:
