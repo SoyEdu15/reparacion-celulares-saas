@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireSuperAdmin } from '@/lib/auth/admin-guards';
 import { obtenerTenant } from '@/server/services/admin-tenants';
-import { cambiarEstadoAction } from '../actions';
+import { cambiarEstadoAction, crearDuenoAction } from '../actions';
 
 function formatoFecha(fecha: Date): string {
   return new Date(fecha).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' });
@@ -97,6 +97,33 @@ export default async function TenantDetallePage({
           </div>
         </div>
       </div>
+
+      {tenant.usuarios.length === 0 ? (
+        <div className="card" style={{ borderColor: 'var(--warning-border)' }}>
+          <h2>Este tenant no tiene ningún usuario todavía</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginTop: -8 }}>
+            Sin un dueño, nadie puede iniciar sesión en {urlTenant}. Créalo acá.
+          </p>
+          <form action={crearDuenoAction} className="form-grid">
+            <input type="hidden" name="tenantId" value={tenant.id} />
+            <label className="form-field">
+              Nombre
+              <input name="nombre" required maxLength={120} />
+            </label>
+            <label className="form-field">
+              Email
+              <input name="email" type="email" required />
+            </label>
+            <label className="form-field">
+              Contraseña temporal
+              <input name="password" type="password" required minLength={8} />
+            </label>
+            <button type="submit" className="btn btn-primary">
+              Crear dueño
+            </button>
+          </form>
+        </div>
+      ) : null}
 
       <div className="card">
         <h2>Usuarios ({tenant.usuarios.length})</h2>

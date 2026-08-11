@@ -22,6 +22,9 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
 
       <div className="card">
         <h2>Nuevo tenant</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginTop: -8 }}>
+          El dueño queda creado en el mismo paso — sin esto el negocio no tiene con qué iniciar sesión.
+        </p>
         <form action={crearTenantAction} className="form-grid">
           <label className="form-field">
             Subdominio
@@ -34,6 +37,18 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
           <label className="form-field">
             WhatsApp de soporte (opcional)
             <input name="whatsappContactoSoporte" placeholder="+573001234567" />
+          </label>
+          <label className="form-field">
+            Nombre del dueño
+            <input name="duenoNombre" required maxLength={120} />
+          </label>
+          <label className="form-field">
+            Email del dueño
+            <input name="duenoEmail" type="email" required />
+          </label>
+          <label className="form-field">
+            Contraseña temporal del dueño
+            <input name="duenoPassword" type="password" required minLength={8} />
           </label>
           <button type="submit" className="btn btn-primary">
             Crear
