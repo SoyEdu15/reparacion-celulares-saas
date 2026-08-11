@@ -10,11 +10,23 @@ export function listarEquipos(tenantId: string) {
   );
 }
 
+/**
+ * Incluye el historial de reparaciones del equipo (sección 4.5: reemplazo de
+ * un módulo de inventario — el foco es trazabilidad histórica) para poder
+ * ver de un vistazo si tiene una reparación con garantía vigente antes de
+ * registrar un ingreso nuevo (sección 4.4).
+ */
 export function obtenerEquipo(tenantId: string, id: string) {
   return withTenant(tenantId, (tx) =>
     tx.equipo.findUnique({
       where: { id },
-      include: { cliente: { select: { id: true, nombre: true } } },
+      include: {
+        cliente: { select: { id: true, nombre: true } },
+        reparaciones: {
+          orderBy: { fechaRecibido: 'desc' },
+          include: { tecnicoAsignado: { select: { nombre: true } } },
+        },
+      },
     }),
   );
 }

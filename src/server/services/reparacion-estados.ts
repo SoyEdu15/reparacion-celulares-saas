@@ -207,9 +207,13 @@ export async function avanzarEstado(
 }
 
 /**
- * Entrega (sección 4.3 + 5): calcula bodegaje si se pasó la custodia
- * gratis y genera la factura interna con numeración consecutiva por
- * tenant (misma técnica de contador atómico que numeroOrden).
+ * Entrega (sección 4.3 + 4.4 + 5): calcula bodegaje si se pasó la custodia
+ * gratis, genera la factura interna con numeración consecutiva por tenant,
+ * y si el tenant tiene garantía activa registra días_garantia/
+ * fecha_fin_garantia a partir de la fecha real de entrega. La granularidad
+ * "por tipo de reparación" que menciona la sección 4.4 queda para más
+ * adelante (no hay todavía un CRUD de tipos_reparacion) — por ahora se usa
+ * el valor por defecto del tenant para todas las reparaciones.
  */
 export async function entregarReparacion(
   tenantId: string,
@@ -223,10 +227,23 @@ export async function entregarReparacion(
       throw new Error(`No se puede entregar una reparación en estado ${actual.estado}`);
     }
 
+    const tenantGarantia = await tx.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { garantiaActiva: true, diasGarantiaDefault: true },
+    });
+
     const ahora = new Date();
+    let fechaFinGarantia: Date | null = null;
+    let diasGarantia: number | null = null;
+    if (tenantGarantia.garantiaActiva && tenantGarantia.diasGarantiaDefault > 0) {
+      diasGarantia = tenantGarantia.diasGarantiaDefault;
+      fechaFinGarantia = new Date(ahora);
+      fechaFinGarantia.setDate(fechaFinGarantia.getDate() + diasGarantia);
+    }
+
     const reparacion = await tx.reparacion.update({
       where: { id: reparacionId },
-      data: { estado: 'ENTREGADO', fechaEntregaReal: ahora },
+      data: { estado: 'ENTREGADO', fechaEntregaReal: ahora, diasGarantia, fechaFinGarantia },
     });
 
     const historial = await tx.historialEstado.create({
