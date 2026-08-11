@@ -1,6 +1,6 @@
 import { requireDueno } from '@/lib/auth/guards';
 import { obtenerConfiguracion } from '@/server/services/configuracion-tenant';
-import { actualizarConfiguracionAction } from './actions';
+import { actualizarConfiguracionAction, subirLogoAction } from './actions';
 
 export default async function ConfiguracionPage({
   searchParams,
@@ -22,6 +22,31 @@ export default async function ConfiguracionPage({
       {error ? <p className="form-error">{error}</p> : null}
       {ok ? <p className="form-success">Guardado.</p> : null}
 
+      <div className="card">
+        <h2>Logo</h2>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+          {tenant.logoPreviewUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={tenant.logoPreviewUrl}
+              alt="Logo actual"
+              style={{ maxHeight: 64, maxWidth: 160, objectFit: 'contain', border: '1px solid var(--border)', borderRadius: 8, padding: 4 }}
+            />
+          ) : (
+            <p className="empty-state" style={{ padding: 0 }}>
+              Sin logo todavía.
+            </p>
+          )}
+          <form action={subirLogoAction} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input type="file" name="logo" accept="image/jpeg,image/png,image/webp" required />
+            <button type="submit" className="btn btn-secondary">
+              Subir
+            </button>
+          </form>
+        </div>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: 8 }}>JPG, PNG o WebP, máximo 2MB.</p>
+      </div>
+
       <form action={actualizarConfiguracionAction}>
         <div className="card">
           <h2>Datos comerciales</h2>
@@ -41,10 +66,6 @@ export default async function ConfiguracionPage({
             <label className="form-field">
               Teléfono
               <input name="telefono" maxLength={20} defaultValue={tenant.telefono ?? ''} />
-            </label>
-            <label className="form-field" style={{ gridColumn: '1 / -1' }}>
-              URL del logo (opcional — pega el link a una imagen ya alojada en algún sitio)
-              <input name="logoUrl" type="url" placeholder="https://..." defaultValue={tenant.logoUrl ?? ''} />
             </label>
           </div>
         </div>

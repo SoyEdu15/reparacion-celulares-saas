@@ -5,7 +5,6 @@ export const configuracionTenantSchema = z.object({
   nit: z.union([z.string().trim().max(30), z.literal('')]),
   direccion: z.union([z.string().trim().max(200), z.literal('')]),
   telefono: z.union([z.string().trim().max(20), z.literal('')]),
-  logoUrl: z.union([z.string().trim().url('URL inválida'), z.literal('')]),
 
   piePaginaFactura: z.union([z.string().trim().max(500), z.literal('')]),
   remitenteEmailFacturas: z.union([z.string().trim().toLowerCase().email('Email inválido'), z.literal('')]),

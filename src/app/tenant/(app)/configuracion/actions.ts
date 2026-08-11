@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { requireDueno } from '@/lib/auth/guards';
 import { configuracionTenantSchema } from '@/lib/validation/configuracion-tenant';
-import { actualizarConfiguracion } from '@/server/services/configuracion-tenant';
+import { actualizarConfiguracion, actualizarLogo } from '@/server/services/configuracion-tenant';
 
 function str(fd: FormData, name: string): string {
   const v = fd.get(name);
@@ -35,7 +35,6 @@ export async function actualizarConfiguracionAction(formData: FormData) {
     nit: str(formData, 'nit'),
     direccion: str(formData, 'direccion'),
     telefono: str(formData, 'telefono'),
-    logoUrl: str(formData, 'logoUrl'),
     piePaginaFactura: str(formData, 'piePaginaFactura'),
     remitenteEmailFacturas: str(formData, 'remitenteEmailFacturas'),
     plantillaFacturaDefault: str(formData, 'plantillaFacturaDefault'),
@@ -56,6 +55,27 @@ export async function actualizarConfiguracionAction(formData: FormData) {
   }
 
   await actualizarConfiguracion(session.user.tenantId, parsed.data);
+  revalidatePath('/configuracion');
+  redirect('/configuracion?ok=1');
+}
+
+export async function subirLogoAction(formData: FormData) {
+  const session = await requireDueno();
+
+  const file = formData.get('logo');
+  if (!(file instanceof File) || file.size === 0) {
+    redirect('/configuracion?error=Selecciona%20una%20imagen');
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    redirect('/configuracion?error=La%20imagen%20no%20puede%20pesar%20m%C3%A1s%20de%202MB');
+  }
+
+  try {
+    await actualizarLogo(session.user.tenantId, file);
+  } catch (e) {
+    redirect(`/configuracion?error=${encodeURIComponent(e instanceof Error ? e.message : 'No se pudo subir el logo')}`);
+  }
+
   revalidatePath('/configuracion');
   redirect('/configuracion?ok=1');
 }

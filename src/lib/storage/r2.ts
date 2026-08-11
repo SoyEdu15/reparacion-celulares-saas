@@ -15,6 +15,7 @@ const client = new S3Client({
 });
 
 const BUCKET_FOTOS = process.env.STORAGE_BUCKET_FOTOS as string;
+const BUCKET_COMPROBANTES = process.env.STORAGE_BUCKET_COMPROBANTES as string;
 
 const CONTENT_TYPES_PERMITIDOS = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const EXTENSION_POR_TIPO: Record<string, string> = {
@@ -63,4 +64,26 @@ export async function uploadFoto(tenantId: string, reparacionId: string, file: F
   const buffer = Buffer.from(await file.arrayBuffer());
   await client.send(new PutObjectCommand({ Bucket: BUCKET_FOTOS, Key: key, Body: buffer, ContentType: file.type }));
   return key;
+}
+
+/**
+ * Logo del negocio (sección 5): vive en el bucket de "comprobantes" (activo
+ * de marca del tenant, no una foto de equipo de un cliente). El bucket
+ * sigue siendo privado — la pantalla de login (Paso 2) genera una URL
+ * firmada al vuelo en cada render, igual que las fotos de equipo.
+ */
+export async function uploadLogo(tenantId: string, file: File): Promise<string> {
+  if (!CONTENT_TYPES_PERMITIDOS.has(file.type)) {
+    throw new Error(`Tipo de archivo no permitido: ${file.type}`);
+  }
+  const ext = EXTENSION_POR_TIPO[file.type] ?? 'bin';
+  const key = `logos/${tenantId}/${randomUUID()}.${ext}`;
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await client.send(new PutObjectCommand({ Bucket: BUCKET_COMPROBANTES, Key: key, Body: buffer, ContentType: file.type }));
+  return key;
+}
+
+export async function presignLogoView(key: string): Promise<string> {
+  const command = new GetObjectCommand({ Bucket: BUCKET_COMPROBANTES, Key: key });
+  return getSignedUrl(client, command, { expiresIn: 300 });
 }
