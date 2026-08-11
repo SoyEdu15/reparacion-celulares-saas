@@ -367,8 +367,10 @@ table.data-table {
 .recibo .recibo-total {
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 1.15em;
   margin-top: 8px;
 }
 
@@ -385,6 +387,157 @@ table.data-table {
   margin: 16px auto 0;
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.formato-switcher {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.formato-switcher a {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.formato-switcher a.activo {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+/* ---- Plantilla: MODERNA ---- */
+
+.recibo--moderna {
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(16, 24, 40, 0.1);
+  overflow: hidden;
+  padding-top: 0;
+}
+
+.recibo--moderna .recibo-header {
+  padding: 20px 24px;
+  background: var(--primary);
+  color: white;
+  margin: 0 0 20px;
+}
+
+.recibo--moderna .recibo-header h1 {
+  color: white;
+}
+
+.recibo--moderna .recibo-header .recibo-meta {
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 0;
+}
+
+.recibo--moderna .recibo-body {
+  padding: 0 24px 24px;
+}
+
+.recibo--moderna hr {
+  border-top: 1px solid var(--border);
+}
+
+.recibo--moderna .recibo-total {
+  background: var(--bg);
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--primary);
+}
+
+/* ---- Plantilla: MINIMALISTA ---- */
+
+.recibo--minimalista {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 12px 4px;
+}
+
+.recibo--minimalista .recibo-header {
+  padding: 0;
+  margin-bottom: 16px;
+}
+
+.recibo--minimalista .recibo-body {
+  padding: 0;
+}
+
+.recibo--minimalista h1 {
+  font-weight: 500;
+  font-size: 1rem;
+}
+
+.recibo--minimalista hr {
+  border-top: 1px solid var(--border);
+}
+
+.recibo--minimalista .recibo-fila span:last-child,
+.recibo--minimalista .recibo-total span:last-child {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+.recibo--minimalista .recibo-politica {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 0;
+}
+
+/* ---- Formatos de impresión (afectan ancho/tamaño, no el estilo) ---- */
+
+.formato-termico-58mm.recibo {
+  max-width: 210px;
+  padding: 14px;
+  font-size: 0.6875rem;
+}
+
+.formato-termico-58mm.recibo h1 {
+  font-size: 0.875rem;
+}
+
+.formato-termico-80mm.recibo {
+  max-width: 290px;
+  padding: 18px;
+  font-size: 0.75rem;
+}
+
+.formato-termico-80mm.recibo h1 {
+  font-size: 1rem;
+}
+
+.formato-carta.recibo {
+  max-width: 640px;
+  padding: 48px;
+  font-size: 1rem;
+}
+
+.formato-carta.recibo h1 {
+  font-size: 1.5rem;
+}
+
+.formato-termico-58mm.recibo--moderna .recibo-header,
+.formato-termico-80mm.recibo--moderna .recibo-header {
+  margin-left: -14px;
+  margin-right: -14px;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.formato-carta.recibo--moderna .recibo-header {
+  margin: -48px -48px 24px;
+  padding: 32px 48px;
+}
+
+.formato-carta.recibo--moderna .recibo-body {
+  padding: 0;
 }
 
 @media print {
@@ -397,8 +550,7 @@ table.data-table {
     max-width: none;
   }
   .recibo {
-    border: none;
-    box-shadow: none;
+    box-shadow: none !important;
     margin: 0;
   }
 }
