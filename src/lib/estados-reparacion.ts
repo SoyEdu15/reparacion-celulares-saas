@@ -1,3 +1,5 @@
+import type { EstadoReparacion } from '@prisma/client';
+
 export const ESTADO_LABELS: Record<string, string> = {
   RECIBIDO: 'Recibido',
   ESPERANDO_TECNICO: 'Esperando técnico',
@@ -16,7 +18,7 @@ export function badgeClassParaEstado(estado: string): string {
   return 'badge-activo';
 }
 
-export const ESTADOS_ORDEN: string[] = [
+export const ESTADOS_ORDEN: EstadoReparacion[] = [
   'ESPERANDO_TECNICO',
   'DIAGNOSTICO',
   'ESPERANDO_APROBACION_CLIENTE',
