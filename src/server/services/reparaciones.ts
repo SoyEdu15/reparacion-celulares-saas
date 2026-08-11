@@ -4,6 +4,21 @@ import { encryptPin } from '@/lib/crypto/pin-encryption';
 import { uploadFoto, presignFotoView } from '@/lib/storage/r2';
 import type { IngresoEquipoInput } from '@/lib/validation/reparacion';
 
+/**
+ * Purga manual del PIN/patrón (sección 7.1). Sobrescribe el valor cifrado
+ * (la columna es NOT NULL, así que no se puede dejar en null; el vacío +
+ * purgadoEn seteado es la señal de "ya no hay nada que descifrar aquí").
+ * Queda quién y cuándo purgó, para auditoría.
+ */
+export function purgarPin(tenantId: string, reparacionId: string, usuarioId: string) {
+  return withTenant(tenantId, (tx) =>
+    tx.pinDesbloqueo.update({
+      where: { reparacionId },
+      data: { valorCifrado: '', purgadoEn: new Date(), purgadoPorId: usuarioId },
+    }),
+  );
+}
+
 export function listarReparaciones(tenantId: string, estado?: EstadoReparacion) {
   return withTenant(tenantId, (tx) =>
     tx.reparacion.findMany({

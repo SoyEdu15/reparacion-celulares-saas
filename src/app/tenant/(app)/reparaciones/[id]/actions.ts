@@ -11,6 +11,8 @@ import {
   entregarReparacion,
   marcarFueraDeFlujo,
 } from '@/server/services/reparacion-estados';
+import { purgarPin } from '@/server/services/reparaciones';
+import { notificarCambioEstado } from '@/server/services/notificaciones';
 
 function str(fd: FormData, name: string): string | null {
   const v = fd.get(name);
@@ -32,6 +34,18 @@ function volver(id: string, error?: string): never {
   redirect(error ? `/reparaciones/${id}?error=${encodeURIComponent(error)}` : `/reparaciones/${id}`);
 }
 
+/**
+ * Best-effort: si encolar la notificación falla, no se debe perder el
+ * cambio de estado que ya se guardó — "no bloqueante" (sección 4.2/8).
+ */
+async function notificarSinFallar(tenantId: string, reparacionId: string) {
+  try {
+    await notificarCambioEstado(tenantId, reparacionId);
+  } catch (e) {
+    console.error('No se pudo encolar la notificación de cambio de estado', e);
+  }
+}
+
 export async function tomarEquipoAction(formData: FormData) {
   const session = await requireSession();
   const id = str(formData, 'reparacionId')!;
@@ -40,6 +54,7 @@ export async function tomarEquipoAction(formData: FormData) {
   } catch (e) {
     volver(id, e instanceof Error ? e.message : 'No se pudo actualizar');
   }
+  await notificarSinFallar(session.user.tenantId, id);
   volver(id);
 }
 
@@ -58,6 +73,7 @@ export async function completarDiagnosticoAction(formData: FormData) {
   } catch (e) {
     volver(id, e instanceof Error ? e.message : 'No se pudo actualizar');
   }
+  await notificarSinFallar(session.user.tenantId, id);
   volver(id);
 }
 
@@ -73,6 +89,7 @@ export async function registrarAprobacionAction(formData: FormData) {
   } catch (e) {
     volver(id, e instanceof Error ? e.message : 'No se pudo actualizar');
   }
+  await notificarSinFallar(session.user.tenantId, id);
   volver(id);
 }
 
@@ -95,6 +112,7 @@ export async function avanzarEstadoAction(formData: FormData) {
   } catch (e) {
     volver(id, e instanceof Error ? e.message : 'No se pudo actualizar');
   }
+  await notificarSinFallar(session.user.tenantId, id);
   volver(id);
 }
 
@@ -113,7 +131,19 @@ export async function entregarAction(formData: FormData) {
   } catch (e) {
     volver(id, e instanceof Error ? e.message : 'No se pudo actualizar');
   }
+  await notificarSinFallar(session.user.tenantId, id);
   redirect(`/reparaciones/${id}/comprobante`);
+}
+
+export async function purgarPinAction(formData: FormData) {
+  const session = await requireSession();
+  const id = str(formData, 'reparacionId')!;
+  try {
+    await purgarPin(session.user.tenantId, id, session.user.id);
+  } catch (e) {
+    volver(id, e instanceof Error ? e.message : 'No se pudo purgar el PIN');
+  }
+  volver(id);
 }
 
 export async function marcarFueraDeFlujoAction(formData: FormData) {
@@ -132,5 +162,6 @@ export async function marcarFueraDeFlujoAction(formData: FormData) {
   } catch (e) {
     volver(id, e instanceof Error ? e.message : 'No se pudo actualizar');
   }
+  await notificarSinFallar(session.user.tenantId, id);
   volver(id);
 }

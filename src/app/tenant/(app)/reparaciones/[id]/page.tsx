@@ -10,6 +10,7 @@ import {
   avanzarEstadoAction,
   entregarAction,
   marcarFueraDeFlujoAction,
+  purgarPinAction,
 } from './actions';
 
 const ESTADOS_TERMINALES = new Set(['ENTREGADO', 'NO_REPARABLE', 'CANCELADO']);
@@ -42,6 +43,7 @@ export default async function ReparacionDetallePage({
 
   const puedeVerPin =
     reparacion.pinDesbloqueo != null &&
+    reparacion.pinDesbloqueo.purgadoEn == null &&
     reparacion.tecnicoAsignadoId === session.user.id &&
     !ESTADOS_TERMINALES.has(reparacion.estado);
   const pinDescifrado = puedeVerPin ? decryptPin(reparacion.pinDesbloqueo!.valorCifrado) : null;
@@ -121,10 +123,16 @@ export default async function ReparacionDetallePage({
         <div className="card" style={{ borderColor: 'var(--warning-border)' }}>
           <h2>PIN/patrón de desbloqueo</h2>
           <p style={{ fontSize: '1.25rem', fontFamily: 'monospace' }}>{pinDescifrado}</p>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: 12 }}>
             Tipo: {reparacion.pinDesbloqueo!.tipo}. Visible solo para ti mientras seas el técnico asignado y la orden
             siga activa.
           </p>
+          <form action={purgarPinAction}>
+            <input type="hidden" name="reparacionId" value={reparacion.id} />
+            <button type="submit" className="btn btn-danger">
+              Purgar PIN ahora
+            </button>
+          </form>
         </div>
       ) : null}
 

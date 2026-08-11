@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { requireSession } from '@/lib/auth/guards';
 import { ingresoEquipoSchema } from '@/lib/validation/reparacion';
 import { crearReparacion } from '@/server/services/reparaciones';
+import { notificarCambioEstado } from '@/server/services/notificaciones';
 
 function str(fd: FormData, name: string): string | null {
   const v = fd.get(name);
@@ -69,5 +70,10 @@ export async function crearReparacionAction(formData: FormData) {
   }
 
   const reparacion = await crearReparacion(session.user.tenantId, session.user.id, parsed.data, fotos);
+  try {
+    await notificarCambioEstado(session.user.tenantId, reparacion.id);
+  } catch (e) {
+    console.error('No se pudo encolar la notificación de ingreso', e);
+  }
   redirect(`/reparaciones/${reparacion.id}/recibo`);
 }
