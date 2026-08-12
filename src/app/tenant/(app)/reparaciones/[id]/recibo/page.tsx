@@ -123,6 +123,11 @@ export default async function ReciboIngresoPage({
           <p className="recibo-fila">
             <span>Presupuesto estimado</span> <span>{formatoCOP(reparacion.presupuestoEstimado)}</span>
           </p>
+          {reparacion.anticipo > 0 ? (
+            <p className="recibo-fila">
+              <span>Anticipo recibido</span> <span>{formatoCOP(reparacion.anticipo)}</span>
+            </p>
+          ) : null}
 
           <div className="recibo-politica">
             <strong>Política de custodia:</strong> {reparacion.diasCustodiaGratisAplicado} días gratis desde la fecha

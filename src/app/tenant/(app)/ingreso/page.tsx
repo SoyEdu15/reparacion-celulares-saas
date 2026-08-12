@@ -225,6 +225,10 @@ export default async function IngresoPage({
             Presupuesto estimado (COP, opcional)
             <input type="number" name="presupuestoEstimado" min={0} step={1000} />
           </label>
+          <label className="form-field">
+            Anticipo que deja el cliente (COP, opcional)
+            <input type="number" name="anticipo" min={0} step={1000} />
+          </label>
         </div>
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.875rem', marginBottom: 20 }}>
           <input type="checkbox" name="presupuestoEstimadoAceptado" />

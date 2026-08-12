@@ -26,6 +26,7 @@ export type FacturaEmailParams = {
     subtotalReparacion: number;
     cargoBodegaje: number;
     diasBodegajeCobrados: number;
+    anticipo: number;
     total: number;
   };
 };
@@ -85,6 +86,12 @@ export function facturaEmailHtml(p: FacturaEmailParams): string {
             <td style="padding:10px 0 0;font-weight:700;font-size:16px;border-top:1px solid #e2e4e9;">Total</td>
             <td style="padding:10px 0 0;font-weight:700;font-size:16px;text-align:right;border-top:1px solid #e2e4e9;">${cop(p.factura.total)}</td>
           </tr>
+          ${
+            p.factura.anticipo > 0
+              ? `<tr><td style="padding:6px 0 0;">Anticipo pagado</td><td style="padding:6px 0 0;text-align:right;">−${cop(p.factura.anticipo)}</td></tr>
+                 <tr><td style="padding:6px 0 0;font-weight:700;">Saldo a pagar</td><td style="padding:6px 0 0;text-align:right;font-weight:700;">${cop(p.factura.total - p.factura.anticipo)}</td></tr>`
+              : ''
+          }
         </table>
 
         ${p.tenant.piePaginaFactura ? `<p style="margin:20px 0 0;font-size:12px;color:#6b7280;">${p.tenant.piePaginaFactura}</p>` : ''}
@@ -101,6 +108,9 @@ export function facturaEmailTexto(p: FacturaEmailParams): string {
   ];
   if (p.factura.cargoBodegaje > 0) {
     lineas.push(`Incluye bodegaje de ${p.factura.diasBodegajeCobrados} día(s): ${cop(p.factura.cargoBodegaje)}`);
+  }
+  if (p.factura.anticipo > 0) {
+    lineas.push(`Anticipo pagado: ${cop(p.factura.anticipo)} — Saldo a pagar: ${cop(p.factura.total - p.factura.anticipo)}`);
   }
   return lineas.join('\n');
 }

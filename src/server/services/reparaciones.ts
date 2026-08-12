@@ -148,6 +148,7 @@ export async function crearReparacion(tenantId: string, recibidoPorId: string, d
         tecnicoAsignadoEn: tecnicoAsignado ? new Date() : null,
         presupuestoEstimado: data.presupuestoEstimado,
         presupuestoEstimadoAceptado: data.presupuestoEstimado != null && data.presupuestoEstimadoAceptado,
+        anticipo: data.anticipo ?? 0,
         fechaEstimadaEntrega: data.fechaEstimadaEntrega ? new Date(data.fechaEstimadaEntrega) : null,
         diasCustodiaGratisAplicado: tenant.diasCustodiaGratis,
         fechaLimiteCustodia,

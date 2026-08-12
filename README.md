@@ -1,6 +1,6 @@
 # Reparación de Celulares — SaaS multi-tenant
 
-> **Beta 1** — en desarrollo activo. La pasarela de pagos y la integración real de WhatsApp Business todavía no están conectadas (ver [Estado del proyecto](#estado-del-proyecto--roadmap)).
+> **Beta 2** (`v0.1.0-beta.2`) — en desarrollo activo. La pasarela de pagos y la integración real de WhatsApp Business todavía no están conectadas (ver [Estado del proyecto](#estado-del-proyecto--roadmap)). Ver todas las versiones en [Releases](https://github.com/SoyEdu15/reparacion-celulares-saas/releases).
 
 **Patrocinador oficial: E-TECH** — [@eduard.tech](https://www.instagram.com/eduard.tech) en Instagram y TikTok.
 
@@ -24,6 +24,7 @@ Plataforma SaaS para talleres de reparación de celulares en Colombia. Cada tall
 - **Login en dos pasos**: subdominio del taller (`taller.tuapp.com`) → credenciales de dueño o técnico. Panel de super-admin completamente separado en `admin.tuapp.com`, con su propia sesión y secreto.
 - **Máquina de estados de reparación** completa y auditable: ingreso → diagnóstico → (aprobación del cliente si aplica) → reparación → testeo → entrega, con rutas alternas a "no reparable" / "cancelado" desde cualquier estado en curso.
 - **Asignación de técnico flexible**: opcional desde el ingreso; si queda pendiente, el propio técnico se autoasigna al tomarla, o el dueño elige a quién asignarla.
+- **Anticipos**: el cliente puede dejar un abono en el ingreso o en cualquier momento antes de la entrega — se descuenta del total en la factura final, mostrando el saldo pendiente.
 - **Facturación**: logo del negocio, 3 plantillas visuales (clásica/moderna/minimalista) y 3 formatos de impresión (térmico 58mm/80mm, carta/A4), responsive en pantalla.
 - **Envío automático de factura por correo** al entregar el equipo — HTML con logo embebido, no solo un texto genérico.
 - **Notificaciones asíncronas** (WhatsApp/Email) por cola con reintentos — un fallo de envío nunca bloquea ni revierte un cambio de estado ya guardado.

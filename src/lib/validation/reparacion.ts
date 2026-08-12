@@ -26,6 +26,8 @@ export const ingresoEquipoSchema = z
     fechaEstimadaEntrega: z.string().trim().nullable(),
     presupuestoEstimado: z.number().int().positive().nullable(),
     presupuestoEstimadoAceptado: z.boolean(),
+    /** Anticipo opcional que el cliente deja en el ingreso; se puede agregar o actualizar después desde el detalle de la orden. */
+    anticipo: z.number().int().min(0).nullable(),
 
     consentimientoDatos: z.boolean().refine((v) => v === true, {
       message: 'Debes aceptar el tratamiento de datos personales (Habeas Data)',
@@ -57,4 +59,9 @@ export type IngresoEquipoInput = z.infer<typeof ingresoEquipoSchema>;
 export const asignarTecnicoSchema = z.object({
   reparacionId: z.string().uuid(),
   tecnicoId: z.string().uuid(),
+});
+
+export const registrarAnticipoSchema = z.object({
+  reparacionId: z.string().uuid(),
+  anticipo: z.number().int().min(0, 'El anticipo no puede ser negativo'),
 });

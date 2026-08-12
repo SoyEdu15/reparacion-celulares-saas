@@ -407,6 +407,11 @@ model Reparacion {
   presupuestoAprobadoPor      Usuario?         @relation("PresupuestoAprobadoPor", fields: [presupuestoAprobadoPorId], references: [id])
   canalAprobacion             CanalAprobacion? @map("canal_aprobacion")
 
+  // Anticipo (sección 4.2): abono que el cliente puede dejar en el ingreso o
+  // en cualquier momento antes de la entrega — se descuenta del total en la
+  // factura final, no es un pago completo.
+  anticipo Int @default(0) @map("anticipo")
+
   fechaEstimadaEntrega DateTime? @map("fecha_estimada_entrega")
 
   // Custodia — snapshot al momento de creación (sección 4.3, no retroactivo)
@@ -545,6 +550,7 @@ model Factura {
   subtotalReparacion   Int @map("subtotal_reparacion")
   cargoBodegaje        Int @default(0) @map("cargo_bodegaje")
   diasBodegajeCobrados Int @default(0) @map("dias_bodegaje_cobrados")
+  anticipo             Int @default(0) @map("anticipo") // snapshot del anticipo ya pagado al momento de la entrega
   total                Int
 
   // Key del PDF generado en R2

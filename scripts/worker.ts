@@ -91,6 +91,7 @@ const notificacionesWorker = new Worker<NotificacionJobData>(
           subtotalReparacion: factura.subtotalReparacion,
           cargoBodegaje: factura.cargoBodegaje,
           diasBodegajeCobrados: factura.diasBodegajeCobrados,
+          anticipo: factura.anticipo,
           total: factura.total,
         },
       };

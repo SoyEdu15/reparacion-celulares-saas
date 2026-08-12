@@ -105,6 +105,41 @@ export async function asignarTecnico(tenantId: string, reparacionId: string, usu
   });
 }
 
+const ESTADOS_CERRADOS = new Set(['ENTREGADO', 'NO_REPARABLE', 'CANCELADO']);
+
+/**
+ * Anticipo (abono): el cliente puede dejarlo en el ingreso o agregarlo/
+ * actualizarlo después, mientras la orden siga activa. Se descuenta del
+ * total en la factura final (ver entregarReparacion) — nunca es un pago
+ * completo por sí solo.
+ */
+export async function registrarAnticipo(tenantId: string, reparacionId: string, usuarioId: string, anticipo: number) {
+  return withTenant(tenantId, async (tx) => {
+    const actual = await tx.reparacion.findUniqueOrThrow({ where: { id: reparacionId } });
+    if (ESTADOS_CERRADOS.has(actual.estado)) {
+      throw new Error('No se puede registrar un anticipo en una orden ya cerrada');
+    }
+
+    const actualizada = await tx.reparacion.update({
+      where: { id: reparacionId },
+      data: { anticipo },
+    });
+
+    await tx.historialEstado.create({
+      data: {
+        tenantId,
+        reparacionId,
+        estadoAnterior: actual.estado,
+        estadoNuevo: actual.estado,
+        usuarioId,
+        notaCorta: `Anticipo actualizado a ${anticipo.toLocaleString('es-CO')} COP`,
+      },
+    });
+
+    return actualizada;
+  });
+}
+
 /**
  * Diagnóstico (sección 4.2): nunca se salta, incluso con presupuesto
  * previo. Dos caminos:
@@ -326,6 +361,7 @@ export async function entregarReparacion(
         subtotalReparacion,
         cargoBodegaje,
         diasBodegajeCobrados,
+        anticipo: reparacion.anticipo,
         total: subtotalReparacion + cargoBodegaje,
       },
     });

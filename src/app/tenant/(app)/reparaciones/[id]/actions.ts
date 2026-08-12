@@ -6,6 +6,7 @@ import { requireSession } from '@/lib/auth/guards';
 import {
   tomarEquipo,
   asignarTecnico,
+  registrarAnticipo,
   completarDiagnostico,
   registrarAprobacion,
   avanzarEstado,
@@ -14,7 +15,7 @@ import {
 } from '@/server/services/reparacion-estados';
 import { purgarPin } from '@/server/services/reparaciones';
 import { notificarCambioEstado } from '@/server/services/notificaciones';
-import { asignarTecnicoSchema } from '@/lib/validation/reparacion';
+import { asignarTecnicoSchema, registrarAnticipoSchema } from '@/lib/validation/reparacion';
 
 function str(fd: FormData, name: string): string | null {
   const v = fd.get(name);
@@ -76,6 +77,24 @@ export async function asignarTecnicoAction(formData: FormData) {
     volver(id, e instanceof Error ? e.message : 'No se pudo asignar el técnico');
   }
   await notificarSinFallar(session.user.tenantId, id);
+  volver(id);
+}
+
+export async function registrarAnticipoAction(formData: FormData) {
+  const session = await requireSession();
+  const id = str(formData, 'reparacionId')!;
+  const parsed = registrarAnticipoSchema.safeParse({
+    reparacionId: id,
+    anticipo: num(formData, 'anticipo'),
+  });
+  if (!parsed.success) {
+    volver(id, parsed.error.issues[0]?.message ?? 'Anticipo inválido');
+  }
+  try {
+    await registrarAnticipo(session.user.tenantId, id, session.user.id, parsed.data.anticipo);
+  } catch (e) {
+    volver(id, e instanceof Error ? e.message : 'No se pudo registrar el anticipo');
+  }
   volver(id);
 }
 

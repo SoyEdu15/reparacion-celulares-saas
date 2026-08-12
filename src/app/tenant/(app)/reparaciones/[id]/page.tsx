@@ -7,6 +7,7 @@ import { ESTADO_LABELS, badgeClassParaEstado } from '@/lib/estados-reparacion';
 import {
   tomarEquipoAction,
   asignarTecnicoAction,
+  registrarAnticipoAction,
   completarDiagnosticoAction,
   registrarAprobacionAction,
   avanzarEstadoAction,
@@ -108,6 +109,10 @@ export default async function ReparacionDetallePage({
             <strong>Presupuesto final</strong>
             <p>{formatoCOP(reparacion.presupuestoFinal)}</p>
           </div>
+          <div>
+            <strong>Anticipo</strong>
+            <p>{formatoCOP(reparacion.anticipo)}</p>
+          </div>
         </div>
       </div>
 
@@ -161,6 +166,25 @@ export default async function ReparacionDetallePage({
           </div>
         )}
       </div>
+
+      {!ESTADOS_TERMINALES.has(reparacion.estado) ? (
+        <div className="card">
+          <h2>Anticipo</h2>
+          <p style={{ marginTop: 0 }}>
+            Anticipo actual: <strong>{formatoCOP(reparacion.anticipo)}</strong>
+          </p>
+          <form action={registrarAnticipoAction} className="form-grid">
+            <input type="hidden" name="reparacionId" value={reparacion.id} />
+            <label className="form-field">
+              Nuevo monto del anticipo (COP)
+              <input type="number" name="anticipo" min={0} step={1000} defaultValue={reparacion.anticipo} />
+            </label>
+            <button type="submit" className="btn btn-secondary" style={{ alignSelf: 'end' }}>
+              Actualizar anticipo
+            </button>
+          </form>
+        </div>
+      ) : null}
 
       <div className="card">
         <h2>Acciones</h2>

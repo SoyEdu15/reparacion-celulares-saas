@@ -1,9 +1,11 @@
 import { redirect } from 'next/navigation';
 import { AuthError } from 'next-auth';
 import { signIn } from '@/lib/auth/admin-auth';
+import { saludoSegunHora } from '@/lib/saludo';
 
 export default async function AdminLoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
+  const saludo = saludoSegunHora();
 
   async function login(formData: FormData) {
     'use server';
@@ -24,6 +26,7 @@ export default async function AdminLoginPage({ searchParams }: { searchParams: P
   return (
     <main className="auth-screen">
       <div className="auth-card">
+        <span className="auth-greeting">👋 {saludo}</span>
         <h1>Panel de super-admin</h1>
         <p className="auth-subtitle">Acceso exclusivo del dueño de la plataforma</p>
         {error ? <p className="auth-error">Email o contraseña incorrectos.</p> : null}

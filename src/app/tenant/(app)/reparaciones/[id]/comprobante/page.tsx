@@ -108,6 +108,16 @@ export default async function FacturaPage({
           <p className="recibo-total">
             <span>Total</span> <span>{formatoCOP(factura.total)}</span>
           </p>
+          {factura.anticipo > 0 ? (
+            <>
+              <p className="recibo-fila">
+                <span>Anticipo pagado</span> <span>−{formatoCOP(factura.anticipo)}</span>
+              </p>
+              <p className="recibo-total">
+                <span>Saldo a pagar</span> <span>{formatoCOP(factura.total - factura.anticipo)}</span>
+              </p>
+            </>
+          ) : null}
 
           {tenant.piePaginaFactura ? (
             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 16 }}>{tenant.piePaginaFactura}</p>
