@@ -41,7 +41,10 @@ export default async function ClientesPage({
           </label>
           <label className="form-field">
             Teléfono
-            <input name="telefono" required />
+            <div className="input-prefijo">
+              <span className="input-prefijo-tag">+57</span>
+              <input name="telefono" required inputMode="numeric" maxLength={10} placeholder="3001234567" />
+            </div>
           </label>
           <label className="form-field">
             Cédula (opcional)

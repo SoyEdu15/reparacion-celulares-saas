@@ -36,7 +36,10 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
           </label>
           <label className="form-field">
             WhatsApp de soporte (opcional)
-            <input name="whatsappContactoSoporte" placeholder="+573001234567" />
+            <div className="input-prefijo">
+              <span className="input-prefijo-tag">+57</span>
+              <input name="whatsappContactoSoporte" inputMode="numeric" maxLength={10} placeholder="3001234567" />
+            </div>
           </label>
           <label className="form-field">
             Nombre del dueño

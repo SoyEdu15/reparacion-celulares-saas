@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { telefonoNullableSchema } from './telefono';
 
 export const tipoPinValues = ['PIN', 'PATRON', 'CONTRASENA', 'OTRO'] as const;
 
@@ -6,7 +7,7 @@ export const ingresoEquipoSchema = z
   .object({
     clienteId: z.string().uuid().nullable(),
     clienteNombre: z.string().trim().max(160).nullable(),
-    clienteTelefono: z.string().trim().max(20).nullable(),
+    clienteTelefono: telefonoNullableSchema,
     clienteCedula: z.string().trim().max(20).nullable(),
     clienteEmail: z.string().trim().toLowerCase().max(200).nullable(),
 

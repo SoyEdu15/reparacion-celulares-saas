@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireSession } from '@/lib/auth/guards';
 import { obtenerCliente } from '@/server/services/clientes';
+import { quitarPrefijoPais } from '@/lib/validation/telefono';
 import { editarClienteAction } from '../actions';
 import { crearEquipoAction } from '../../equipos/actions';
 
@@ -38,7 +39,16 @@ export default async function ClienteDetallePage({
           </label>
           <label className="form-field">
             Teléfono
-            <input name="telefono" required defaultValue={cliente.telefono} />
+            <div className="input-prefijo">
+              <span className="input-prefijo-tag">+57</span>
+              <input
+                name="telefono"
+                required
+                inputMode="numeric"
+                maxLength={10}
+                defaultValue={quitarPrefijoPais(cliente.telefono)}
+              />
+            </div>
           </label>
           <label className="form-field">
             Cédula

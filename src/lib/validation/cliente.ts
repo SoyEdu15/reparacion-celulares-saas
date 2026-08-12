@@ -1,8 +1,9 @@
 import { z } from 'zod';
+import { telefonoSchema } from './telefono';
 
 export const clienteSchema = z.object({
   nombre: z.string().trim().min(2, 'Nombre muy corto').max(160),
-  telefono: z.string().trim().min(7, 'Teléfono inválido').max(20),
+  telefono: telefonoSchema,
   cedula: z.union([z.string().trim().max(20), z.literal('')]),
   email: z.union([z.string().trim().toLowerCase().email('Email inválido'), z.literal('')]),
 });

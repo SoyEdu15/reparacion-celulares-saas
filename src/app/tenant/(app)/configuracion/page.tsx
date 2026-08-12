@@ -1,5 +1,6 @@
 import { requireDueno } from '@/lib/auth/guards';
 import { obtenerConfiguracion } from '@/server/services/configuracion-tenant';
+import { quitarPrefijoPais } from '@/lib/validation/telefono';
 import { actualizarConfiguracionAction, subirLogoAction } from './actions';
 
 export default async function ConfiguracionPage({
@@ -65,7 +66,10 @@ export default async function ConfiguracionPage({
             </label>
             <label className="form-field">
               Teléfono
-              <input name="telefono" maxLength={20} defaultValue={tenant.telefono ?? ''} />
+              <div className="input-prefijo">
+                <span className="input-prefijo-tag">+57</span>
+                <input name="telefono" inputMode="numeric" maxLength={10} defaultValue={quitarPrefijoPais(tenant.telefono)} />
+              </div>
             </label>
           </div>
         </div>

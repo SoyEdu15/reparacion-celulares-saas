@@ -107,7 +107,10 @@ export default async function IngresoPage({
               </label>
               <label className="form-field">
                 Teléfono
-                <input name="clienteTelefono" />
+                <div className="input-prefijo">
+                  <span className="input-prefijo-tag">+57</span>
+                  <input name="clienteTelefono" inputMode="numeric" maxLength={10} placeholder="3001234567" />
+                </div>
               </label>
               <label className="form-field">
                 Cédula (opcional)

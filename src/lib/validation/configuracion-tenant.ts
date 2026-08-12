@@ -1,10 +1,11 @@
 import { z } from 'zod';
+import { telefonoOpcionalSchema } from './telefono';
 
 export const configuracionTenantSchema = z.object({
   nombreComercial: z.string().trim().min(2, 'Nombre muy corto').max(160),
   nit: z.union([z.string().trim().max(30), z.literal('')]),
   direccion: z.union([z.string().trim().max(200), z.literal('')]),
-  telefono: z.union([z.string().trim().max(20), z.literal('')]),
+  telefono: telefonoOpcionalSchema,
 
   piePaginaFactura: z.union([z.string().trim().max(500), z.literal('')]),
   remitenteEmailFacturas: z.union([z.string().trim().toLowerCase().email('Email inválido'), z.literal('')]),
