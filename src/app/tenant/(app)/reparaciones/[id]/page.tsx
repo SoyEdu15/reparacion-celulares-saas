@@ -1,10 +1,12 @@
 import { notFound } from 'next/navigation';
 import { requireSession } from '@/lib/auth/guards';
 import { obtenerReparacionDetalle } from '@/server/services/reparaciones';
+import { listarUsuarios } from '@/server/services/usuarios';
 import { decryptPin } from '@/lib/crypto/pin-encryption';
 import { ESTADO_LABELS, badgeClassParaEstado } from '@/lib/estados-reparacion';
 import {
   tomarEquipoAction,
+  asignarTecnicoAction,
   completarDiagnosticoAction,
   registrarAprobacionAction,
   avanzarEstadoAction,
@@ -40,6 +42,11 @@ export default async function ReparacionDetallePage({
   if (!reparacion) {
     notFound();
   }
+
+  const tecnicos =
+    reparacion.estado === 'ESPERANDO_TECNICO'
+      ? (await listarUsuarios(session.user.tenantId)).filter((u) => u.rol === 'TECNICO' && u.activo)
+      : [];
 
   const puedeVerPin =
     reparacion.pinDesbloqueo != null &&
@@ -159,12 +166,42 @@ export default async function ReparacionDetallePage({
         <h2>Acciones</h2>
 
         {reparacion.estado === 'ESPERANDO_TECNICO' ? (
-          <form action={tomarEquipoAction}>
-            <input type="hidden" name="reparacionId" value={reparacion.id} />
-            <button type="submit" className="btn btn-primary">
-              Tomar equipo para diagnóstico
-            </button>
-          </form>
+          <>
+            {session.user.rol === 'TECNICO' ? (
+              <form action={tomarEquipoAction}>
+                <input type="hidden" name="reparacionId" value={reparacion.id} />
+                <button type="submit" className="btn btn-primary">
+                  Tomar equipo para diagnóstico
+                </button>
+              </form>
+            ) : null}
+
+            {session.user.rol === 'DUENO' ? (
+              tecnicos.length > 0 ? (
+                <form action={asignarTecnicoAction} className="form-grid">
+                  <input type="hidden" name="reparacionId" value={reparacion.id} />
+                  <label className="form-field">
+                    Asignar a un técnico
+                    <select name="tecnicoId" required defaultValue="">
+                      <option value="" disabled>
+                        Selecciona un técnico
+                      </option>
+                      {tecnicos.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="submit" className="btn btn-primary" style={{ alignSelf: 'end' }}>
+                    Asignar
+                  </button>
+                </form>
+              ) : (
+                <p className="empty-state">No hay técnicos activos para asignar. Agrega uno en la sección de técnicos.</p>
+              )
+            ) : null}
+          </>
         ) : null}
 
         {reparacion.estado === 'DIAGNOSTICO' ? (

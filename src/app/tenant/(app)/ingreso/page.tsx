@@ -1,5 +1,6 @@
 import { requireSession } from '@/lib/auth/guards';
 import { buscarClientes, obtenerCliente } from '@/server/services/clientes';
+import { listarUsuarios } from '@/server/services/usuarios';
 import { withTenant } from '@/lib/rls';
 import { crearReparacionAction } from './actions';
 
@@ -11,13 +12,15 @@ export default async function IngresoPage({
   const session = await requireSession();
   const { q, clienteId, error } = await searchParams;
 
-  const [tenant, resultados, clienteSeleccionado] = await Promise.all([
+  const [tenant, resultados, clienteSeleccionado, usuarios] = await Promise.all([
     withTenant(session.user.tenantId, (tx) =>
       tx.tenant.findUniqueOrThrow({ where: { id: session.user.tenantId }, select: { diasCustodiaGratis: true, tarifaBodegajeDiaria: true } }),
     ),
     q ? buscarClientes(session.user.tenantId, q) : Promise.resolve([]),
     clienteId ? obtenerCliente(session.user.tenantId, clienteId) : Promise.resolve(null),
+    listarUsuarios(session.user.tenantId),
   ]);
+  const tecnicos = usuarios.filter((u) => u.rol === 'TECNICO' && u.activo);
 
   return (
     <>
@@ -166,7 +169,30 @@ export default async function IngresoPage({
           </label>
         </div>
 
-        <h2>4. Fotos del equipo (4 obligatorias)</h2>
+        {tecnicos.length > 0 ? (
+          <>
+            <h2>4. Técnico (opcional)</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginTop: -8 }}>
+              Si dejas esto vacío, el equipo queda en la cola de espera y cualquier técnico puede tomarlo o el dueño
+              asignarlo después.
+            </p>
+            <div className="form-grid" style={{ marginBottom: 20 }}>
+              <label className="form-field">
+                Asignar directamente a
+                <select name="tecnicoAsignadoId" defaultValue="">
+                  <option value="">— Dejar en cola —</option>
+                  {tecnicos.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </>
+        ) : null}
+
+        <h2>5. Fotos del equipo (4 obligatorias)</h2>
         <div className="form-grid" style={{ marginBottom: 20 }}>
           <label className="form-field">
             Foto 1
@@ -186,7 +212,7 @@ export default async function IngresoPage({
           </label>
         </div>
 
-        <h2>5. Tiempo estimado y presupuesto</h2>
+        <h2>6. Tiempo estimado y presupuesto</h2>
         <div className="form-grid" style={{ marginBottom: 12 }}>
           <label className="form-field">
             Fecha estimada de entrega
@@ -202,7 +228,7 @@ export default async function IngresoPage({
           El cliente acepta este presupuesto estimado (si el diagnóstico lo confirma, se repara directo sin volver a pedir aprobación)
         </label>
 
-        <h2>6. PIN o patrón de desbloqueo (opcional)</h2>
+        <h2>7. PIN o patrón de desbloqueo (opcional)</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginTop: -8 }}>
           Solo para probar el software tras la reparación. Explica al cliente para qué se usa antes de pedir su
           autorización — sin el checkbox marcado, este dato no se guarda.

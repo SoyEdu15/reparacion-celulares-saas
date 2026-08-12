@@ -35,9 +35,19 @@ async function subirFotosDeEstado(
   );
 }
 
-/** El técnico toma un equipo de la cola y empieza el diagnóstico. */
+/**
+ * El técnico toma un equipo de la cola y empieza el diagnóstico
+ * (autoasignación). Se valida que quien ejecuta sea un técnico activo —
+ * un dueño autoasignándose como "técnico" no tiene sentido; para eso el
+ * dueño usa asignarTecnico() y elige a quién.
+ */
 export async function tomarEquipo(tenantId: string, reparacionId: string, usuarioId: string) {
   return withTenant(tenantId, async (tx) => {
+    const usuario = await tx.usuario.findUnique({ where: { id: usuarioId } });
+    if (!usuario || usuario.rol !== 'TECNICO' || !usuario.activo) {
+      throw new Error('Solo un técnico activo puede tomar un equipo de la cola');
+    }
+
     const actual = await tx.reparacion.findUniqueOrThrow({ where: { id: reparacionId } });
     if (actual.estado !== 'ESPERANDO_TECNICO') {
       throw new Error(`No se puede tomar una reparación en estado ${actual.estado}`);
@@ -54,6 +64,41 @@ export async function tomarEquipo(tenantId: string, reparacionId: string, usuari
         estadoNuevo: 'DIAGNOSTICO',
         usuarioId,
         notaCorta: 'Técnico tomó el equipo para diagnóstico',
+      },
+    });
+    return actualizada;
+  });
+}
+
+/**
+ * El dueño (o el propio técnico, eligiéndose a sí mismo) asigna un técnico
+ * específico desde la cola — a diferencia de tomarEquipo(), quien ejecuta
+ * la acción no tiene que ser el técnico asignado.
+ */
+export async function asignarTecnico(tenantId: string, reparacionId: string, usuarioId: string, tecnicoId: string) {
+  return withTenant(tenantId, async (tx) => {
+    const actual = await tx.reparacion.findUniqueOrThrow({ where: { id: reparacionId } });
+    if (actual.estado !== 'ESPERANDO_TECNICO') {
+      throw new Error(`No se puede asignar técnico en estado ${actual.estado}`);
+    }
+
+    const tecnico = await tx.usuario.findUnique({ where: { id: tecnicoId } });
+    if (!tecnico || tecnico.rol !== 'TECNICO' || !tecnico.activo) {
+      throw new Error('El técnico seleccionado no es válido');
+    }
+
+    const actualizada = await tx.reparacion.update({
+      where: { id: reparacionId },
+      data: { estado: 'DIAGNOSTICO', tecnicoAsignadoId: tecnico.id, tecnicoAsignadoEn: new Date() },
+    });
+    await tx.historialEstado.create({
+      data: {
+        tenantId,
+        reparacionId,
+        estadoAnterior: actual.estado,
+        estadoNuevo: 'DIAGNOSTICO',
+        usuarioId,
+        notaCorta: `Asignado a ${tecnico.nombre}`,
       },
     });
     return actualizada;

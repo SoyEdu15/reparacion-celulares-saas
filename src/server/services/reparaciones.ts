@@ -67,16 +67,28 @@ export async function obtenerReparacionDetalle(tenantId: string, id: string) {
 
 /**
  * Ingreso de equipo (sección 4.1): todo en una sola operación — cliente
- * (existente o nuevo), equipo (existente o nuevo), la reparación entra
- * directo a la cola ESPERANDO_TECNICO (recibido/esperando_técnico son,
- * en la práctica de un mostrador, el mismo instante: no hay una revisión
- * manual intermedia entre "se recibe" y "queda en cola"), snapshot de la
- * política de custodia vigente, y el PIN solo si hay valor + consentimiento
+ * (existente o nuevo), equipo (existente o nuevo), snapshot de la política
+ * de custodia vigente, y el PIN solo si hay valor + consentimiento
  * específico. Las fotos se suben después de crear la fila (necesitan el
  * id de la reparación para la ruta en el bucket).
+ *
+ * Asignación de técnico (opcional, tanto el dueño como el técnico pueden
+ * elegirla en el formulario): si se indica un técnico ya en el ingreso, la
+ * orden entra directo a DIAGNOSTICO en vez de a la cola ESPERANDO_TECNICO
+ * — dejarla vacía es exactamente el flujo original (recibido/en cola son,
+ * en la práctica de un mostrador, el mismo instante).
  */
 export async function crearReparacion(tenantId: string, recibidoPorId: string, data: IngresoEquipoInput, fotos: File[]) {
   const reparacion = await withTenant(tenantId, async (tx) => {
+    let tecnicoAsignado: { id: string; nombre: string } | null = null;
+    if (data.tecnicoAsignadoId) {
+      const usuario = await tx.usuario.findUnique({ where: { id: data.tecnicoAsignadoId } });
+      if (!usuario || usuario.rol !== 'TECNICO' || !usuario.activo) {
+        throw new Error('El técnico seleccionado no es válido');
+      }
+      tecnicoAsignado = { id: usuario.id, nombre: usuario.nombre };
+    }
+
     let clienteId = data.clienteId;
     if (!clienteId) {
       const cliente = await tx.cliente.create({
@@ -120,16 +132,20 @@ export async function crearReparacion(tenantId: string, recibidoPorId: string, d
     const fechaLimiteCustodia = new Date();
     fechaLimiteCustodia.setDate(fechaLimiteCustodia.getDate() + tenant.diasCustodiaGratis);
 
+    const estadoInicial = tecnicoAsignado ? 'DIAGNOSTICO' : 'ESPERANDO_TECNICO';
+
     const nuevaReparacion = await tx.reparacion.create({
       data: {
         tenantId,
         clienteId,
         equipoId,
         numeroOrden: tenant.ultimoNumeroOrden,
-        estado: 'ESPERANDO_TECNICO',
+        estado: estadoInicial,
         danosReportados: data.danosReportados,
         estadoFisico: data.estadoFisico,
         recibidoPorId,
+        tecnicoAsignadoId: tecnicoAsignado?.id ?? null,
+        tecnicoAsignadoEn: tecnicoAsignado ? new Date() : null,
         presupuestoEstimado: data.presupuestoEstimado,
         presupuestoEstimadoAceptado: data.presupuestoEstimado != null && data.presupuestoEstimadoAceptado,
         fechaEstimadaEntrega: data.fechaEstimadaEntrega ? new Date(data.fechaEstimadaEntrega) : null,
@@ -144,9 +160,9 @@ export async function crearReparacion(tenantId: string, recibidoPorId: string, d
         tenantId,
         reparacionId: nuevaReparacion.id,
         estadoAnterior: null,
-        estadoNuevo: 'ESPERANDO_TECNICO',
+        estadoNuevo: estadoInicial,
         usuarioId: recibidoPorId,
-        notaCorta: 'Equipo recibido',
+        notaCorta: tecnicoAsignado ? `Equipo recibido y asignado a ${tecnicoAsignado.nombre}` : 'Equipo recibido',
       },
     });
 

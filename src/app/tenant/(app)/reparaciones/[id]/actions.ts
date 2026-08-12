@@ -5,6 +5,7 @@ import type { CanalAprobacion } from '@prisma/client';
 import { requireSession } from '@/lib/auth/guards';
 import {
   tomarEquipo,
+  asignarTecnico,
   completarDiagnostico,
   registrarAprobacion,
   avanzarEstado,
@@ -13,6 +14,7 @@ import {
 } from '@/server/services/reparacion-estados';
 import { purgarPin } from '@/server/services/reparaciones';
 import { notificarCambioEstado } from '@/server/services/notificaciones';
+import { asignarTecnicoSchema } from '@/lib/validation/reparacion';
 
 function str(fd: FormData, name: string): string | null {
   const v = fd.get(name);
@@ -53,6 +55,25 @@ export async function tomarEquipoAction(formData: FormData) {
     await tomarEquipo(session.user.tenantId, id, session.user.id);
   } catch (e) {
     volver(id, e instanceof Error ? e.message : 'No se pudo actualizar');
+  }
+  await notificarSinFallar(session.user.tenantId, id);
+  volver(id);
+}
+
+export async function asignarTecnicoAction(formData: FormData) {
+  const session = await requireSession();
+  const id = str(formData, 'reparacionId')!;
+  const parsed = asignarTecnicoSchema.safeParse({
+    reparacionId: id,
+    tecnicoId: str(formData, 'tecnicoId'),
+  });
+  if (!parsed.success) {
+    volver(id, 'Selecciona un técnico');
+  }
+  try {
+    await asignarTecnico(session.user.tenantId, id, session.user.id, parsed.data.tecnicoId);
+  } catch (e) {
+    volver(id, e instanceof Error ? e.message : 'No se pudo asignar el técnico');
   }
   await notificarSinFallar(session.user.tenantId, id);
   volver(id);

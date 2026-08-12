@@ -49,6 +49,8 @@ export async function crearReparacionAction(formData: FormData) {
     danosReportados: str(formData, 'danosReportados') ?? '',
     estadoFisico: str(formData, 'estadoFisico'),
 
+    tecnicoAsignadoId: str(formData, 'tecnicoAsignadoId'),
+
     fechaEstimadaEntrega: str(formData, 'fechaEstimadaEntrega'),
     presupuestoEstimado: num(formData, 'presupuestoEstimado'),
     presupuestoEstimadoAceptado: bool(formData, 'presupuestoEstimadoAceptado'),

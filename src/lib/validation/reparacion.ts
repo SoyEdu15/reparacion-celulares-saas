@@ -19,6 +19,9 @@ export const ingresoEquipoSchema = z
     danosReportados: z.string().trim().min(3, 'Describe el daño o falla reportado').max(2000),
     estadoFisico: z.string().trim().max(2000).nullable(),
 
+    /** Opcional: si se asigna un técnico ya en el ingreso, la orden entra directo a diagnóstico en vez de a la cola. */
+    tecnicoAsignadoId: z.string().uuid().nullable(),
+
     fechaEstimadaEntrega: z.string().trim().nullable(),
     presupuestoEstimado: z.number().int().positive().nullable(),
     presupuestoEstimadoAceptado: z.boolean(),
@@ -49,3 +52,8 @@ export const ingresoEquipoSchema = z
   });
 
 export type IngresoEquipoInput = z.infer<typeof ingresoEquipoSchema>;
+
+export const asignarTecnicoSchema = z.object({
+  reparacionId: z.string().uuid(),
+  tecnicoId: z.string().uuid(),
+});
