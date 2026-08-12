@@ -87,3 +87,20 @@ export async function presignLogoView(key: string): Promise<string> {
   const command = new GetObjectCommand({ Bucket: BUCKET_COMPROBANTES, Key: key });
   return getSignedUrl(client, command, { expiresIn: 300 });
 }
+
+/**
+ * Descarga el logo como buffer para adjuntarlo embebido (Content-ID) en un
+ * correo — a diferencia de la vista en pantalla, una URL firmada de 5
+ * minutos no sirve ahí porque el cliente puede abrir el correo horas o
+ * días después. Server-to-server, no necesita presign.
+ */
+export async function descargarLogo(key: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+  try {
+    const respuesta = await client.send(new GetObjectCommand({ Bucket: BUCKET_COMPROBANTES, Key: key }));
+    if (!respuesta.Body) return null;
+    const bytes = await respuesta.Body.transformToByteArray();
+    return { buffer: Buffer.from(bytes), contentType: respuesta.ContentType ?? 'image/png' };
+  } catch {
+    return null;
+  }
+}

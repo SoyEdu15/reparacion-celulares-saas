@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireSession } from '@/lib/auth/guards';
 import { withTenant } from '@/lib/rls';
+import { presignLogoView } from '@/lib/storage/r2';
 import { PrintButton } from '@/components/tenant/print-button';
 import { FormatoSwitcher } from '@/components/tenant/formato-switcher';
 import { claseFormato, clasePlantilla, reglaPaginaImpresion, esFormatoValido } from '@/lib/facturas/formato';
@@ -44,6 +45,7 @@ export default async function FacturaPage({
   const factura = reparacion.facturas[0]!;
   const { tenant } = reparacion;
   const formato = esFormatoValido(formatoParam) ? formatoParam : tenant.formatoFacturaDefault;
+  const logoSrc = tenant.logoUrl ? await presignLogoView(tenant.logoUrl) : null;
 
   return (
     <>
@@ -59,11 +61,14 @@ export default async function FacturaPage({
 
       <div className={`recibo ${clasePlantilla(tenant.plantillaFacturaDefault)} ${claseFormato(formato)}`}>
         <div className="recibo-header">
-          <h1>{tenant.nombreComercial ?? 'Factura'}</h1>
-          <p className="recibo-meta">
-            {tenant.nit ? `NIT ${tenant.nit} · ` : ''}
-            {tenant.direccion ?? ''} {tenant.telefono ? `· ${tenant.telefono}` : ''}
-          </p>
+          {logoSrc ? <img src={logoSrc} alt="" className="recibo-logo" /> : null}
+          <div className="recibo-header-text">
+            <h1>{tenant.nombreComercial ?? 'Factura'}</h1>
+            <p className="recibo-meta">
+              {tenant.nit ? `NIT ${tenant.nit} · ` : ''}
+              {tenant.direccion ?? ''} {tenant.telefono ? `· ${tenant.telefono}` : ''}
+            </p>
+          </div>
         </div>
 
         <div className="recibo-body">
