@@ -15,15 +15,26 @@
 
 # misc
 .DS_Store
+Thumbs.db
 *.pem
 npm-debug.log*
+*.log
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# editores
+.vscode/
+.idea/
 
 # docker volumes (si se montan como carpetas locales)
 /.docker-data/
 
 # prisma
 /prisma/dev.db
+
+# scripts de verificación/depuración ad-hoc (nunca se commitean)
+_verify-*.ts
+_reshot-*.ts
+scripts/_tmp-*.ts
