@@ -94,13 +94,26 @@ export async function presignLogoView(key: string): Promise<string> {
  * minutos no sirve ahí porque el cliente puede abrir el correo horas o
  * días después. Server-to-server, no necesita presign.
  */
-export async function descargarLogo(key: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+async function descargarObjeto(bucket: string, key: string): Promise<{ buffer: Buffer; contentType: string } | null> {
   try {
-    const respuesta = await client.send(new GetObjectCommand({ Bucket: BUCKET_COMPROBANTES, Key: key }));
+    const respuesta = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
     if (!respuesta.Body) return null;
     const bytes = await respuesta.Body.transformToByteArray();
     return { buffer: Buffer.from(bytes), contentType: respuesta.ContentType ?? 'image/png' };
   } catch {
     return null;
   }
+}
+
+export function descargarLogo(key: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+  return descargarObjeto(BUCKET_COMPROBANTES, key);
+}
+
+/**
+ * Descarga una foto de equipo como buffer para adjuntarla embebida en un
+ * correo (mismo motivo que descargarLogo: una URL firmada expira en
+ * minutos y el correo se puede abrir días después).
+ */
+export function descargarFoto(key: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+  return descargarObjeto(BUCKET_FOTOS, key);
 }

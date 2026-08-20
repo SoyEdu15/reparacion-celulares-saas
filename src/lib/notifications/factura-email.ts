@@ -1,26 +1,15 @@
-function cop(valor: number): string {
-  return valor.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-}
-
-function fecha(valor: Date | null): string {
-  if (!valor) return '—';
-  return new Date(valor).toLocaleDateString('es-CO', { dateStyle: 'medium' });
-}
+import { emailShellHtml, fotosGridHtml, cop, fechaLarga, type TenantBranding } from './email-shell';
 
 export type FacturaEmailParams = {
-  tenant: {
-    nombreComercial: string | null;
-    nit: string | null;
-    direccion: string | null;
-    telefono: string | null;
-    piePaginaFactura: string | null;
-  };
+  tenant: TenantBranding;
   tieneLogo: boolean;
   clienteNombre: string;
   numeroOrden: number;
   equipoMarca: string;
   equipoModelo: string;
   fechaEntregaReal: Date | null;
+  diagnosticoTexto: string | null;
+  fotosCids: string[];
   factura: {
     numeroFactura: number;
     subtotalReparacion: number;
@@ -31,47 +20,25 @@ export type FacturaEmailParams = {
   };
 };
 
-/**
- * HTML de correo autocontenido: los clientes de correo no cargan
- * stylesheets externos ni la mayoría de selectores CSS modernos, así que
- * todo va con estilos inline y una tabla simple — no se reutiliza
- * globals.css. El logo referencia `cid:logo` (adjunto embebido que arma
- * el worker), nunca una URL firmada — esa expira en minutos y el correo
- * se puede abrir días después.
- */
 export function facturaEmailHtml(p: FacturaEmailParams): string {
-  const nombre = p.tenant.nombreComercial ?? 'Tu taller de confianza';
-  const metaPartes = [
-    p.tenant.nit ? `NIT ${p.tenant.nit}` : null,
-    p.tenant.direccion,
-    p.tenant.telefono,
-  ].filter(Boolean);
-
-  return `<!doctype html>
-<html lang="es">
-  <body style="margin:0;padding:24px 12px;background:#f4f5f7;font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#1a1d23;">
-    <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e4e9;">
-      <div style="background:#2563eb;color:#ffffff;padding:20px 24px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            ${p.tieneLogo ? `<td width="44" style="padding-right:12px;vertical-align:middle;"><img src="cid:logo" alt="" width="44" height="44" style="display:block;border-radius:8px;background:#ffffff;object-fit:contain;" /></td>` : ''}
-            <td style="vertical-align:middle;">
-              <div style="font-size:18px;font-weight:700;line-height:1.3;">${nombre}</div>
-              ${metaPartes.length ? `<div style="font-size:12px;color:rgba(255,255,255,0.85);margin-top:2px;">${metaPartes.join(' · ')}</div>` : ''}
-            </td>
-          </tr>
-        </table>
-      </div>
-
-      <div style="padding:24px;font-size:14px;line-height:1.5;">
+  const cuerpo = `
         <p style="margin:0 0 16px;">Hola ${p.clienteNombre}, tu equipo ya fue entregado. Este es el comprobante de tu factura.</p>
 
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;margin-bottom:16px;">
           <tr><td style="padding:2px 0;color:#6b7280;">Factura</td><td style="padding:2px 0;text-align:right;">#${p.factura.numeroFactura}</td></tr>
           <tr><td style="padding:2px 0;color:#6b7280;">Orden</td><td style="padding:2px 0;text-align:right;">#${p.numeroOrden}</td></tr>
-          <tr><td style="padding:2px 0;color:#6b7280;">Fecha de entrega</td><td style="padding:2px 0;text-align:right;">${fecha(p.fechaEntregaReal)}</td></tr>
+          <tr><td style="padding:2px 0;color:#6b7280;">Fecha de entrega</td><td style="padding:2px 0;text-align:right;">${fechaLarga(p.fechaEntregaReal)}</td></tr>
           <tr><td style="padding:2px 0;color:#6b7280;">Equipo</td><td style="padding:2px 0;text-align:right;">${p.equipoMarca} ${p.equipoModelo}</td></tr>
         </table>
+
+        ${
+          p.diagnosticoTexto
+            ? `<div style="background:#f4f5f7;border-radius:8px;padding:12px 14px;margin-bottom:16px;">
+                 <p style="margin:0 0 4px;font-weight:700;font-size:13px;">Trabajo realizado</p>
+                 <p style="margin:0;font-size:13px;color:#374151;white-space:pre-wrap;">${p.diagnosticoTexto}</p>
+               </div>`
+            : ''
+        }
 
         <hr style="border:none;border-top:1px dashed #e2e4e9;margin:16px 0;" />
 
@@ -93,12 +60,9 @@ export function facturaEmailHtml(p: FacturaEmailParams): string {
               : ''
           }
         </table>
+        ${fotosGridHtml(p.fotosCids, 'Fotos de la entrega')}`;
 
-        ${p.tenant.piePaginaFactura ? `<p style="margin:20px 0 0;font-size:12px;color:#6b7280;">${p.tenant.piePaginaFactura}</p>` : ''}
-      </div>
-    </div>
-  </body>
-</html>`;
+  return emailShellHtml({ tenant: p.tenant, tieneLogo: p.tieneLogo, cuerpoHtml: cuerpo });
 }
 
 export function facturaEmailTexto(p: FacturaEmailParams): string {

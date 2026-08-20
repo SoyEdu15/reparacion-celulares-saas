@@ -1,6 +1,6 @@
 # Reparación de Celulares — SaaS multi-tenant
 
-> **Beta 2** (`v0.1.0-beta.2`) — en desarrollo activo. La pasarela de pagos y la integración real de WhatsApp Business todavía no están conectadas (ver [Estado del proyecto](#estado-del-proyecto--roadmap)). Ver todas las versiones en [Releases](https://github.com/SoyEdu15/reparacion-celulares-saas/releases).
+> **Beta 3** (`v0.1.0-beta.3`) — en desarrollo activo. La pasarela de pagos y la integración real de WhatsApp Business todavía no están conectadas (ver [Estado del proyecto](#estado-del-proyecto--roadmap)). Ver todas las versiones en [Releases](https://github.com/SoyEdu15/reparacion-celulares-saas/releases).
 
 **Patrocinador oficial: E-TECH** — [@eduard.tech](https://www.instagram.com/eduard.tech) en Instagram y TikTok.
 
@@ -26,7 +26,7 @@ Plataforma SaaS para talleres de reparación de celulares en Colombia. Cada tall
 - **Asignación de técnico flexible**: opcional desde el ingreso; si queda pendiente, el propio técnico se autoasigna al tomarla, o el dueño elige a quién asignarla.
 - **Anticipos**: el cliente puede dejar un abono en el ingreso o en cualquier momento antes de la entrega — se descuenta del total en la factura final, mostrando el saldo pendiente.
 - **Facturación**: logo del negocio, 3 plantillas visuales (clásica/moderna/minimalista) y 3 formatos de impresión (térmico 58mm/80mm, carta/A4), responsive en pantalla.
-- **Envío automático de factura por correo** al entregar el equipo — HTML con logo embebido, no solo un texto genérico.
+- **Correos con plantilla propia en cada paso** (no solo texto plano): comprobante de ingreso, cambios de estado y factura de entrega, todos con el logo del negocio, el diagnóstico del técnico cuando aplica, y las fotos del equipo de ese momento embebidas — le sirven al cliente como soporte real de principio a fin.
 - **Notificaciones asíncronas** (WhatsApp/Email) por cola con reintentos — un fallo de envío nunca bloquea ni revierte un cambio de estado ya guardado.
 - **PIN/patrón de desbloqueo cifrado** (AES-256-GCM), con purga manual y automática configurable.
 - **Política de custodia y bodegaje** configurable por taller, con recordatorios automáticos y marcado de abandono.
@@ -73,6 +73,8 @@ El diagnóstico nunca se salta, ni siquiera con presupuesto pre-aceptado en el i
 ### Notificaciones
 
 Cada cambio de estado encola un job por canal activo del tenant (WhatsApp/Email) en la tabla `mensajes_log`. Un worker de BullMQ corriendo como **proceso separado** (`npm run worker`) los procesa con reintentos — nunca vive dentro del servidor de Next.js, porque el HMR del modo desarrollo duplicaría el procesamiento de jobs.
+
+Los correos nunca salen en texto plano: `src/lib/notifications/email-shell.ts` define un envoltorio visual compartido (logo del tenant, datos del negocio) que arman por encima `recibo-email.ts` (comprobante de ingreso), `estado-email.ts` (cambios de estado, con el diagnóstico cuando corresponde) y `factura-email.ts` (entrega). Las fotos relevantes de cada momento (de ingreso o del cambio de estado puntual) se descargan de R2 y se adjuntan embebidas por Content-ID — nunca como URL firmada, porque esa expira en minutos y el correo se puede abrir días después.
 
 ## Estructura del proyecto
 
