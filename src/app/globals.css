@@ -185,8 +185,9 @@ body {
 
 .app-nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 20px;
+  gap: 8px 20px;
   padding: 12px 24px;
   background: var(--card-bg);
   border-bottom: 1px solid var(--border);
@@ -205,6 +206,13 @@ body {
 
 .app-nav-spacer {
   flex: 1;
+}
+
+.app-nav-cuenta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
 }
 
 .app-nav-user {
@@ -690,5 +698,307 @@ table.data-table {
 
   .formato-switcher {
     margin-left: 0;
+  }
+}
+
+/* ---- Ventas, inventario y cuentas ---- */
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+}
+
+.num {
+  text-align: right !important;
+  white-space: nowrap;
+}
+
+.texto-ok {
+  color: #027a48;
+}
+
+.texto-danger {
+  color: var(--danger);
+}
+
+.texto-alerta {
+  color: #b54708;
+  font-weight: 600;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.tabla-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fila-anulada td {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.data-table tfoot td {
+  font-weight: 600;
+  border-bottom: none;
+}
+
+.data-table tfoot .fila-total td {
+  font-size: 1rem;
+  border-top: 2px solid var(--text);
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.kpi {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.card .kpi {
+  background: var(--bg);
+  border-color: transparent;
+}
+
+.kpi span {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.kpi strong {
+  font-size: 1.375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi small {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.kpi.kpi-ok {
+  border-color: #abefc6;
+  background: #ecfdf3;
+}
+
+.kpi-ok strong {
+  color: #027a48;
+}
+
+.kpi.kpi-alerta {
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
+}
+
+.kpi-alerta strong {
+  color: #b54708;
+}
+
+.card-summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.card-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.totales-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 0.875rem;
+}
+
+.periodo-filtro {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.periodo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.periodo-chips a {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  color: var(--text);
+  text-decoration: none;
+  background: var(--card-bg);
+}
+
+.periodo-chips a.activo {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.periodo-rango {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+}
+
+.periodo-rango input {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: inherit;
+}
+
+.periodo-titulo {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  margin: -6px 0 16px;
+}
+
+.filtros-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.filtros-inline input[name='q'],
+.filtros-inline select {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
+.filtros-inline input[name='q'] {
+  flex: 1;
+  min-width: 180px;
+}
+
+.dos-columnas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0 20px;
+}
+
+.venta-lineas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.venta-linea {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--border);
+}
+
+.venta-linea .form-field {
+  flex: 1 1 130px;
+}
+
+.venta-linea .venta-linea-producto {
+  flex: 3 1 240px;
+}
+
+.venta-linea .venta-linea-desc {
+  flex: 2 1 200px;
+}
+
+.venta-linea .venta-linea-cant {
+  flex: 0 0 70px;
+}
+
+.venta-linea-subtotal {
+  flex: 0 0 auto;
+  min-width: 100px;
+  text-align: right;
+  font-weight: 600;
+  padding-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  font-variant-numeric: tabular-nums;
+}
+
+.venta-linea-quitar {
+  margin-bottom: 2px;
+}
+
+.form-field input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.venta-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.venta-total strong {
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.venta-total .btn {
+  padding: 10px 20px;
+  font-size: 0.9375rem;
+}
+
+.venta-total .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .app-main {
+    padding: 16px;
+  }
+
+  .page-header {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .form-grid [style*='span 2'] {
+    grid-column: auto !important;
   }
 }

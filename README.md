@@ -30,6 +30,7 @@ Plataforma SaaS para talleres de reparación de celulares en Colombia. Cada tall
 - **Notificaciones asíncronas** (WhatsApp/Email) por cola con reintentos — un fallo de envío nunca bloquea ni revierte un cambio de estado ya guardado.
 - **PIN/patrón de desbloqueo cifrado** (AES-256-GCM), con purga manual y automática configurable.
 - **Política de custodia y bodegaje** configurable por taller, con recordatorios automáticos y marcado de abandono.
+- **Ventas, inventario y cuentas del local**: ventas de mostrador (accesorios, repuestos y reparaciones rápidas sin orden) con descuento automático de stock; inventario con precio de compra, precio de venta, costo promedio ponderado y alertas de stock mínimo; costos de cada reparación (repuesto del inventario o comprado aparte, transporte, insumos) para ver su ganancia real; gastos generales del local; y un resumen por día/semana/mes con ingresos por tipo, costo de lo vendido, gastos y ganancia real.
 - **Reportes exportables a CSV** (reparaciones, clientes, facturas), con BOM para que Excel no rompa los acentos.
 - **Habeas Data**: consentimiento explícito de tratamiento de datos personales conforme a la Ley 1581 de 2012.
 

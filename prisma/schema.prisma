@@ -198,6 +198,11 @@ model Tenant {
   pagosSuscripcion PagoSuscripcion[]
   credencial       CredencialTenant?
   auditLogsAdmin   AuditLogAdmin[]
+  productos        Producto[]
+  entradasInv      EntradaInventario[]
+  ventas           Venta[]
+  gastos           Gasto[]
+  costosReparacion CostoReparacion[]
 
   @@map("tenants")
 }
@@ -277,14 +282,18 @@ model Usuario {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relaciones inversas de auditoría de Reparacion (quién hizo qué)
-  equiposRecibidos           Reparacion[]      @relation("RecibidoPor")
-  reparacionesDiagnosticadas Reparacion[]      @relation("DiagnosticadoPor")
-  reparacionesAsignadas      Reparacion[]      @relation("TecnicoAsignado")
-  reparacionesReparadas      Reparacion[]      @relation("ReparadoPor")
-  presupuestosAprobados      Reparacion[]      @relation("PresupuestoAprobadoPor")
-  cambiosEstado              HistorialEstado[] @relation("UsuarioCambioEstado")
-  fotosSubidas               FotoEquipo[]      @relation("SubidoPor")
-  pinesPurgados              PinDesbloqueo[]   @relation("PurgadoPor")
+  equiposRecibidos           Reparacion[]        @relation("RecibidoPor")
+  reparacionesDiagnosticadas Reparacion[]        @relation("DiagnosticadoPor")
+  reparacionesAsignadas      Reparacion[]        @relation("TecnicoAsignado")
+  reparacionesReparadas      Reparacion[]        @relation("ReparadoPor")
+  presupuestosAprobados      Reparacion[]        @relation("PresupuestoAprobadoPor")
+  cambiosEstado              HistorialEstado[]   @relation("UsuarioCambioEstado")
+  fotosSubidas               FotoEquipo[]        @relation("SubidoPor")
+  pinesPurgados              PinDesbloqueo[]     @relation("PurgadoPor")
+  entradasInventario         EntradaInventario[] @relation("EntradaRegistradaPor")
+  ventasRegistradas          Venta[]             @relation("VentaRegistradaPor")
+  gastosRegistrados          Gasto[]             @relation("GastoRegistradoPor")
+  costosRegistrados          CostoReparacion[]   @relation("CostoRegistradoPor")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -425,10 +434,10 @@ model Reparacion {
 
   // Garantía (sección 4.4)
   diasGarantia          Int?         @map("dias_garantia")
-  fechaFinGarantia       DateTime?   @map("fecha_fin_garantia")
-  esReclamoGarantiaDeId  String?     @map("es_reclamo_garantia_de_id")
-  esReclamoGarantiaDe    Reparacion? @relation("ReclamoGarantia", fields: [esReclamoGarantiaDeId], references: [id])
-  reclamosGarantia       Reparacion[] @relation("ReclamoGarantia")
+  fechaFinGarantia      DateTime?    @map("fecha_fin_garantia")
+  esReclamoGarantiaDeId String?      @map("es_reclamo_garantia_de_id")
+  esReclamoGarantiaDe   Reparacion?  @relation("ReclamoGarantia", fields: [esReclamoGarantiaDeId], references: [id])
+  reclamosGarantia      Reparacion[] @relation("ReclamoGarantia")
 
   // Abandono (sección 4.3) — el sistema solo señala, no actúa
   marcadoAbandonado   Boolean   @default(false) @map("marcado_abandonado")
@@ -445,6 +454,7 @@ model Reparacion {
   pinDesbloqueo    PinDesbloqueo?
   facturas         Factura[]
   mensajesLog      MensajeLog[]
+  costos           CostoReparacion[]
 
   @@unique([tenantId, numeroOrden])
   @@index([tenantId, estado])
@@ -613,4 +623,202 @@ model PagoSuscripcion {
 
   @@index([tenantId, estado])
   @@map("pagos_suscripcion")
+}
+
+// ----------------------------------------------------------------------------
+// Inventario, ventas y cuentas del local
+//
+// - Producto: catálogo con stock. costoPromedio es el costo unitario
+//   ponderado (se recalcula con cada EntradaInventario), así el costo de la
+//   mercancía vendida refleja lo que realmente costó, aunque el proveedor
+//   cambie precios entre compras.
+// - Venta / VentaItem: venta de mostrador (accesorios, repuestos o una
+//   reparación rápida que no pasó por una orden). Una venta puede mezclar
+//   tipos: cada ítem lleva el suyo. Cada ítem guarda un
+//   snapshot de costoUnitario al momento de la venta: cambiar después el
+//   costo del producto no reescribe la ganancia de ventas pasadas.
+// - Las reparaciones con orden NO se registran como Venta: su ingreso sale
+//   de la Factura generada en la entrega, y sus costos de CostoReparacion
+//   (repuesto del inventario o comprado aparte, transporte, insumos...).
+// - Gasto: gastos generales del local (arriendo, servicios, transporte,
+//   insumos...) que no se atribuyen a una reparación puntual.
+// ----------------------------------------------------------------------------
+
+enum CategoriaProducto {
+  ACCESORIO
+  REPUESTO
+}
+
+enum TipoVenta {
+  ACCESORIO
+  REPUESTO
+  REPARACION
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  TARJETA
+  OTRO
+}
+
+enum CategoriaGasto {
+  TRANSPORTE
+  INSUMOS
+  ARRIENDO
+  SERVICIOS
+  NOMINA
+  OTRO
+}
+
+enum TipoCostoReparacion {
+  REPUESTO
+  TRANSPORTE
+  INSUMOS
+  MANO_OBRA_EXTERNA
+  OTRO
+}
+
+model Producto {
+  id       String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  nombre        String
+  categoria     CategoriaProducto
+  codigo        String? // SKU / referencia interna opcional
+  costoPromedio Int               @default(0) @map("costo_promedio") // COP por unidad
+  precioVenta   Int               @default(0) @map("precio_venta") // COP por unidad
+  stock         Int               @default(0)
+  stockMinimo   Int               @default(0) @map("stock_minimo")
+  activo        Boolean           @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  entradas EntradaInventario[]
+  ventas   VentaItem[]
+  costos   CostoReparacion[]
+
+  @@index([tenantId, categoria])
+  @@index([tenantId, nombre])
+  @@map("productos")
+}
+
+// Entrada de mercancía (compra al proveedor). Suma stock y recalcula el
+// costo promedio del producto.
+model EntradaInventario {
+  id         String   @id @default(uuid())
+  tenantId   String   @map("tenant_id")
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  productoId String   @map("producto_id")
+  producto   Producto @relation(fields: [productoId], references: [id])
+
+  cantidad      Int
+  costoUnitario Int     @map("costo_unitario")
+  proveedor     String?
+  nota          String?
+
+  registradoPorId String  @map("registrado_por_id")
+  registradoPor   Usuario @relation("EntradaRegistradaPor", fields: [registradoPorId], references: [id])
+
+  fecha     DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, fecha])
+  @@index([tenantId, productoId])
+  @@map("entradas_inventario")
+}
+
+model Venta {
+  id       String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  metodoPago MetodoPago @default(EFECTIVO) @map("metodo_pago")
+  cliente    String? // nombre libre, opcional (venta de mostrador)
+  nota       String?
+  total      Int
+  costoTotal Int        @map("costo_total")
+
+  anulada   Boolean   @default(false)
+  anuladaEn DateTime? @map("anulada_en")
+
+  registradoPorId String  @map("registrado_por_id")
+  registradoPor   Usuario @relation("VentaRegistradaPor", fields: [registradoPorId], references: [id])
+
+  fecha     DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  items VentaItem[]
+
+  @@index([tenantId, fecha])
+  @@map("ventas")
+}
+
+model VentaItem {
+  id       String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  ventaId  String @map("venta_id")
+  venta    Venta  @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+
+  productoId String?   @map("producto_id") // null = ítem libre (ej. mano de obra)
+  producto   Producto? @relation(fields: [productoId], references: [id])
+
+  // Clasificación para las cuentas: para un producto del inventario se copia
+  // su categoría; para un ítem libre la elige quien registra la venta.
+  tipo           TipoVenta
+  descripcion    String
+  cantidad       Int
+  precioUnitario Int       @map("precio_unitario")
+  costoUnitario  Int       @map("costo_unitario") // snapshot
+
+  @@index([tenantId, ventaId])
+  @@map("venta_items")
+}
+
+model Gasto {
+  id       String @id @default(uuid())
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  categoria   CategoriaGasto
+  descripcion String
+  monto       Int
+
+  registradoPorId String  @map("registrado_por_id")
+  registradoPor   Usuario @relation("GastoRegistradoPor", fields: [registradoPorId], references: [id])
+
+  fecha     DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, fecha])
+  @@map("gastos")
+}
+
+// Lo que le costó al local una reparación puntual: el repuesto (del
+// inventario o comprado aparte para ese equipo), transporte, insumos...
+model CostoReparacion {
+  id           String     @id @default(uuid())
+  tenantId     String     @map("tenant_id")
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reparacionId String     @map("reparacion_id")
+  reparacion   Reparacion @relation(fields: [reparacionId], references: [id], onDelete: Cascade)
+
+  tipo        TipoCostoReparacion
+  descripcion String
+  productoId  String?             @map("producto_id") // si salió del inventario
+  producto    Producto?           @relation(fields: [productoId], references: [id])
+  cantidad    Int                 @default(1)
+  monto       Int // costo total de la línea (COP)
+
+  registradoPorId String  @map("registrado_por_id")
+  registradoPor   Usuario @relation("CostoRegistradoPor", fields: [registradoPorId], references: [id])
+
+  fecha     DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, reparacionId])
+  @@index([tenantId, fecha])
+  @@map("costos_reparacion")
 }

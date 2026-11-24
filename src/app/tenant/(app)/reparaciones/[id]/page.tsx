@@ -4,6 +4,7 @@ import { obtenerReparacionDetalle } from '@/server/services/reparaciones';
 import { listarUsuarios } from '@/server/services/usuarios';
 import { decryptPin } from '@/lib/crypto/pin-encryption';
 import { ESTADO_LABELS, badgeClassParaEstado } from '@/lib/estados-reparacion';
+import { CostosReparacion } from '@/components/tenant/costos-reparacion';
 import {
   tomarEquipoAction,
   asignarTecnicoAction,
@@ -343,6 +344,14 @@ export default async function ReparacionDetallePage({
           </a>
         ) : null}
       </div>
+
+      {session.user.rol === 'DUENO' ? (
+        <CostosReparacion
+          tenantId={session.user.tenantId}
+          reparacionId={reparacion.id}
+          presupuesto={reparacion.presupuestoFinal ?? reparacion.presupuestoEstimado}
+        />
+      ) : null}
 
       <div className="card">
         <h2>Historial</h2>
