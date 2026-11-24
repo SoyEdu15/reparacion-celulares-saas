@@ -1,11 +1,13 @@
 import type { CategoriaGasto, MetodoPago, TipoVenta } from '@prisma/client';
 import { withTenant } from '@/lib/rls';
+import { METODO_PAGO_LABELS, TIPO_PAGO_REPARACION_LABELS } from '@/lib/cuentas-labels';
+import { netoPagado } from './pagos-reparacion';
 
 export type LineaCategoria = { tipo: TipoVenta; ingreso: number; costo: number; ganancia: number; cantidad: number };
 
 export type Movimiento = {
   fecha: Date;
-  tipo: 'VENTA' | 'FACTURA' | 'GASTO' | 'COSTO_REPARACION' | 'COMPRA';
+  tipo: 'VENTA' | 'PAGO_REPARACION' | 'GASTO' | 'COSTO_REPARACION' | 'COMPRA';
   descripcion: string;
   ingreso: number;
   egreso: number;
@@ -23,6 +25,11 @@ export type Movimiento = {
  *     transporte, insumos), o cerradas sin cobro (no reparable/cancelada)
  *   − gastos generales del período
  *
+ * Abonos: cuentan para la CAJA el día que se reciben (pagos_reparacion),
+ * pero la ganancia de la reparación se reconoce completa el día de la
+ * entrega. Si la orden se cierra sin reparar y el abono no se devuelve, lo
+ * que quedó es ingreso del día del cierre.
+ *
  * Las compras de mercancía (entradas de inventario) NO restan de la
  * utilidad: esa plata se convierte en inventario y se descuenta cuando el
  * producto se vende. Se muestran aparte como salida de caja.
@@ -30,7 +37,7 @@ export type Movimiento = {
 export async function resumenCuentas(tenantId: string, desde: Date, hasta: Date) {
   const rango = { gte: desde, lt: hasta };
 
-  const [items, ventasPorMetodo, facturas, costosRep, gastos, entradas, cerradasSinCobro, enCurso] = await withTenant(tenantId, (tx) =>
+  const [items, ventasPorMetodo, facturas, costosRep, gastos, entradas, cerradasSinCobro, enCurso, pagos] = await withTenant(tenantId, (tx) =>
     Promise.all([
       tx.ventaItem.findMany({
         where: { venta: { anulada: false, fecha: rango } },
@@ -82,12 +89,29 @@ export async function resumenCuentas(tenantId: string, desde: Date, hasta: Date)
       // el período: lo que se gastó en ellas es pérdida de ese día.
       tx.historialEstado.findMany({
         where: { estadoNuevo: { in: ['NO_REPARABLE', 'CANCELADO'] }, createdAt: rango },
-        select: { reparacion: { select: { id: true, costos: { select: { monto: true } } } } },
+        select: {
+          reparacion: {
+            select: { id: true, costos: { select: { monto: true } }, pagos: { select: { tipo: true, monto: true } } },
+          },
+        },
       }),
       // Plata metida en reparaciones que todavía no se entregan.
       tx.costoReparacion.aggregate({
         where: { reparacion: { estado: { notIn: ['ENTREGADO', 'NO_REPARABLE', 'CANCELADO'] } } },
         _sum: { monto: true },
+      }),
+      tx.pagoReparacion.findMany({
+        where: { fecha: rango },
+        orderBy: { fecha: 'desc' },
+        select: {
+          tipo: true,
+          monto: true,
+          metodoPago: true,
+          fecha: true,
+          reparacion: {
+            select: { id: true, numeroOrden: true, estado: true, equipo: { select: { marca: true, modelo: true } } },
+          },
+        },
       }),
     ]),
   );
@@ -111,14 +135,21 @@ export async function resumenCuentas(tenantId: string, desde: Date, hasta: Date)
   const costosEntregadas = facturas.reduce((s, f) => s + f.reparacion.costos.reduce((a, c) => a + c.monto, 0), 0);
   const vistas = new Set<string>();
   let costosSinCobro = 0;
+  let abonosRetenidos = 0;
+  let cerradasConAbono = 0;
   for (const h of cerradasSinCobro) {
     if (vistas.has(h.reparacion.id)) continue;
     vistas.add(h.reparacion.id);
     costosSinCobro += h.reparacion.costos.reduce((a, c) => a + c.monto, 0);
+    const retenido = netoPagado(h.reparacion.pagos);
+    if (retenido > 0) {
+      abonosRetenidos += retenido;
+      cerradasConAbono += 1;
+    }
   }
   const totalCostosRep = costosEntregadas + costosSinCobro;
-  rep.ingreso += ingresoFacturas;
-  rep.cantidad += facturas.length;
+  rep.ingreso += ingresoFacturas + abonosRetenidos;
+  rep.cantidad += facturas.length + cerradasConAbono;
   rep.costo += totalCostosRep;
   for (const l of porTipo.values()) l.ganancia = l.ingreso - l.costo;
   const categorias = [...porTipo.values()];
@@ -134,13 +165,33 @@ export async function resumenCuentas(tenantId: string, desde: Date, hasta: Date)
   const utilidadNeta = gananciaBruta - totalGastos;
   const comprasMercancia = entradas.reduce((s, e) => s + e.cantidad * e.costoUnitario, 0);
 
-  // --- Por método de pago (solo ventas de mostrador; las facturas de
-  // reparación no guardan cómo pagó el cliente) ------------------------------
-  const metodos = ventasPorMetodo.map((m) => ({
-    metodo: m.metodoPago as MetodoPago,
-    total: m._sum.total ?? 0,
-    cantidad: m._count._all,
-  }));
+  // --- Caja: plata que entró de verdad, por método de pago -----------------
+  // Ventas de mostrador + abonos y pagos de reparaciones − devoluciones.
+  const porMetodo = new Map<MetodoPago, { metodo: MetodoPago; total: number; cantidad: number }>();
+  const sumar = (metodo: MetodoPago, monto: number, n: number) => {
+    const m = porMetodo.get(metodo) ?? { metodo, total: 0, cantidad: 0 };
+    m.total += monto;
+    m.cantidad += n;
+    porMetodo.set(metodo, m);
+  };
+  for (const v of ventasPorMetodo) sumar(v.metodoPago as MetodoPago, v._sum.total ?? 0, v._count._all);
+  for (const p of pagos) sumar(p.metodoPago, p.tipo === 'DEVOLUCION' ? -p.monto : p.monto, 1);
+  const metodos = [...porMetodo.values()].sort((a, b) => b.total - a.total);
+  const ventasMostrador = ventasPorMetodo.reduce((s, v) => s + (v._sum.total ?? 0), 0);
+  const sumaTipo = (t: string) => pagos.filter((p) => p.tipo === t).reduce((s, p) => s + p.monto, 0);
+  const caja = {
+    ventasMostrador,
+    abonos: sumaTipo('ABONO'),
+    saldos: sumaTipo('SALDO'),
+    devoluciones: sumaTipo('DEVOLUCION'),
+    // Abonos recibidos en el período de órdenes que siguen abiertas: es plata
+    // que ya está en caja pero todavía no es ganancia.
+    abonosOrdenesAbiertas: pagos
+      .filter((p) => p.tipo === 'ABONO' && !['ENTREGADO', 'NO_REPARABLE', 'CANCELADO'].includes(p.reparacion.estado))
+      .reduce((s, p) => s + p.monto, 0),
+    total: 0,
+  };
+  caja.total = caja.ventasMostrador + caja.abonos + caja.saldos - caja.devoluciones;
 
   // --- Reparaciones entregadas: ganancia real por orden ---------------------
   const reparacionesEntregadas = facturas.map((f) => {
@@ -160,13 +211,13 @@ export async function resumenCuentas(tenantId: string, desde: Date, hasta: Date)
 
   // --- Movimientos (línea de tiempo) ---------------------------------------
   const movimientos: Movimiento[] = [
-    ...facturas.map((f) => ({
-      fecha: f.createdAt,
-      tipo: 'FACTURA' as const,
-      descripcion: `Reparación orden #${f.reparacion.numeroOrden} — ${f.reparacion.equipo.marca} ${f.reparacion.equipo.modelo}`,
-      ingreso: f.total,
-      egreso: 0,
-      href: `/reparaciones/${f.reparacion.id}`,
+    ...pagos.map((p) => ({
+      fecha: p.fecha,
+      tipo: 'PAGO_REPARACION' as const,
+      descripcion: `${TIPO_PAGO_REPARACION_LABELS[p.tipo]} orden #${p.reparacion.numeroOrden} — ${p.reparacion.equipo.marca} ${p.reparacion.equipo.modelo} (${METODO_PAGO_LABELS[p.metodoPago]})`,
+      ingreso: p.tipo === 'DEVOLUCION' ? 0 : p.monto,
+      egreso: p.tipo === 'DEVOLUCION' ? p.monto : 0,
+      href: `/reparaciones/${p.reparacion.id}`,
     })),
     ...costosRep.map((c) => ({
       fecha: c.fecha,
@@ -202,6 +253,8 @@ export async function resumenCuentas(tenantId: string, desde: Date, hasta: Date)
     utilidadNeta,
     comprasMercancia,
     costosSinCobro,
+    abonosRetenidos,
+    caja,
     invertidoEnCurso: enCurso._sum.monto ?? 0,
     gastosPorCategoria: [...gastosPorCategoria.entries()].map(([categoria, monto]) => ({ categoria, monto })),
     metodos,

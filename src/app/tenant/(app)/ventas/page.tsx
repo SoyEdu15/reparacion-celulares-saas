@@ -1,8 +1,9 @@
 import { requireSession } from '@/lib/auth/guards';
 import { hoyBogota, rangoPeriodo } from '@/lib/fechas-bogota';
-import { formatoCOP, METODO_PAGO_LABELS, TIPO_VENTA_LABELS } from '@/lib/cuentas-labels';
+import { formatoCOP, METODO_PAGO_LABELS, TIPO_PAGO_REPARACION_LABELS, TIPO_VENTA_LABELS } from '@/lib/cuentas-labels';
 import { listarProductos } from '@/server/services/inventario';
 import { listarVentas } from '@/server/services/ventas';
+import { listarPagosReparacion } from '@/server/services/pagos-reparacion';
 import { VentaForm } from '@/components/tenant/venta-form';
 import { PeriodoFiltro } from '@/components/tenant/periodo-filtro';
 import { anularVentaAction, registrarVentaAction } from './actions';
@@ -30,10 +31,12 @@ export default async function VentasPage({
   const sp = await searchParams;
   const rango = rangoPeriodo(sp.periodo, sp.desde, sp.hasta);
 
-  const [productos, ventas] = await Promise.all([
+  const [productos, ventas, pagos] = await Promise.all([
     listarProductos(session.user.tenantId),
     listarVentas(session.user.tenantId, rango.desde, rango.hasta),
+    listarPagosReparacion(session.user.tenantId, rango.desde, rango.hasta),
   ]);
+  const totalPagos = pagos.reduce((s, p) => s + (p.tipo === 'DEVOLUCION' ? -p.monto : p.monto), 0);
 
   const activas = ventas.filter((v) => !v.anulada);
   const totalPeriodo = activas.reduce((s, v) => s + v.total, 0);
@@ -139,6 +142,64 @@ export default async function VentasPage({
                           </button>
                         </form>
                       ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <div className="card-header-row">
+          <h2 style={{ margin: 0 }}>Pagos de reparaciones</h2>
+          <div className="totales-inline">
+            <span>
+              Entró: <strong>{formatoCOP(totalPagos)}</strong>
+            </span>
+            <span>
+              Total en caja: <strong className="texto-ok">{formatoCOP(totalPeriodo + totalPagos)}</strong>
+            </span>
+          </div>
+        </div>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginTop: 0 }}>
+          Abonos que dejan los clientes y lo que pagan al recoger el equipo, en el mismo período. Se registran desde
+          cada orden.
+        </p>
+        {pagos.length === 0 ? (
+          <p className="empty-state">No hay pagos de reparaciones en este período.</p>
+        ) : (
+          <div className="tabla-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Orden</th>
+                  <th>Tipo</th>
+                  <th>Pago</th>
+                  <th className="num">Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pagos.map((p) => (
+                  <tr key={p.id}>
+                    <td style={{ whiteSpace: 'nowrap' }}>{fechaHora(p.fecha)}</td>
+                    <td>
+                      <a href={`/reparaciones/${p.reparacion.id}`}>
+                        #{p.reparacion.numeroOrden} — {p.reparacion.equipo.marca} {p.reparacion.equipo.modelo}
+                      </a>
+                      <br />
+                      <small style={{ color: 'var(--text-muted)' }}>
+                        {p.reparacion.cliente.nombre} · {p.registradoPor.nombre}
+                        {p.nota ? ` · ${p.nota}` : ''}
+                      </small>
+                    </td>
+                    <td>{TIPO_PAGO_REPARACION_LABELS[p.tipo]}</td>
+                    <td>{METODO_PAGO_LABELS[p.metodoPago]}</td>
+                    <td className={`num ${p.tipo === 'DEVOLUCION' ? 'texto-danger' : ''}`}>
+                      {p.tipo === 'DEVOLUCION' ? '−' : ''}
+                      {formatoCOP(p.monto)}
                     </td>
                   </tr>
                 ))}

@@ -1,4 +1,5 @@
 import type { EstadoReparacion } from '@prisma/client';
+import { crearAbonoInicial } from './pagos-reparacion';
 import { withTenant } from '@/lib/rls';
 import { encryptPin } from '@/lib/crypto/pin-encryption';
 import { uploadFoto, presignFotoView } from '@/lib/storage/r2';
@@ -154,6 +155,14 @@ export async function crearReparacion(tenantId: string, recibidoPorId: string, d
         fechaLimiteCustodia,
         consentimientoDatosAceptadoEn: new Date(),
       },
+    });
+
+    await crearAbonoInicial(tx, {
+      tenantId,
+      reparacionId: nuevaReparacion.id,
+      usuarioId: recibidoPorId,
+      monto: data.anticipo ?? 0,
+      metodoPago: data.anticipoMetodoPago,
     });
 
     await tx.historialEstado.create({

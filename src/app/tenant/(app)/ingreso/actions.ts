@@ -55,6 +55,7 @@ export async function crearReparacionAction(formData: FormData) {
     presupuestoEstimado: num(formData, 'presupuestoEstimado'),
     presupuestoEstimadoAceptado: bool(formData, 'presupuestoEstimadoAceptado'),
     anticipo: num(formData, 'anticipo'),
+    anticipoMetodoPago: str(formData, 'anticipoMetodoPago') ?? undefined,
 
     consentimientoDatos: bool(formData, 'consentimientoDatos'),
 

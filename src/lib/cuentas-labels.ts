@@ -33,6 +33,12 @@ export const TIPO_COSTO_REPARACION_LABELS: Record<string, string> = {
   OTRO: 'Otro',
 };
 
+export const TIPO_PAGO_REPARACION_LABELS: Record<string, string> = {
+  ABONO: 'Abono',
+  SALDO: 'Pago al entregar',
+  DEVOLUCION: 'Devolución',
+};
+
 export function formatoCOP(valor: number | null | undefined): string {
   if (valor == null) return '—';
   return valor.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });

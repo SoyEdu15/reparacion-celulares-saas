@@ -203,6 +203,7 @@ model Tenant {
   ventas           Venta[]
   gastos           Gasto[]
   costosReparacion CostoReparacion[]
+  pagosReparacion  PagoReparacion[]
 
   @@map("tenants")
 }
@@ -294,6 +295,7 @@ model Usuario {
   ventasRegistradas          Venta[]             @relation("VentaRegistradaPor")
   gastosRegistrados          Gasto[]             @relation("GastoRegistradoPor")
   costosRegistrados          CostoReparacion[]   @relation("CostoRegistradoPor")
+  pagosRegistrados           PagoReparacion[]    @relation("PagoRegistradoPor")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -455,6 +457,7 @@ model Reparacion {
   facturas         Factura[]
   mensajesLog      MensajeLog[]
   costos           CostoReparacion[]
+  pagos            PagoReparacion[]
 
   @@unique([tenantId, numeroOrden])
   @@index([tenantId, estado])
@@ -671,6 +674,12 @@ enum CategoriaGasto {
   OTRO
 }
 
+enum TipoPagoReparacion {
+  ABONO // el cliente deja plata antes de la entrega
+  SALDO // lo que paga al recoger el equipo
+  DEVOLUCION // plata que se le regresa al cliente (sale de caja)
+}
+
 enum TipoCostoReparacion {
   REPUESTO
   TRANSPORTE
@@ -821,4 +830,31 @@ model CostoReparacion {
   @@index([tenantId, reparacionId])
   @@index([tenantId, fecha])
   @@map("costos_reparacion")
+}
+
+// Cada plata que entra (o sale) por una reparación con orden, con su fecha y
+// cómo se pagó. La caja del día sale de aquí; la ganancia sigue saliendo de
+// la factura (se reconoce completa el día de la entrega). Reparacion.anticipo
+// queda como la suma de los abonos (lo usan el recibo y la factura).
+model PagoReparacion {
+  id           String     @id @default(uuid())
+  tenantId     String     @map("tenant_id")
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reparacionId String     @map("reparacion_id")
+  reparacion   Reparacion @relation(fields: [reparacionId], references: [id], onDelete: Cascade)
+
+  tipo       TipoPagoReparacion
+  monto      Int // siempre positivo; DEVOLUCION resta
+  metodoPago MetodoPago         @map("metodo_pago")
+  nota       String?
+
+  registradoPorId String  @map("registrado_por_id")
+  registradoPor   Usuario @relation("PagoRegistradoPor", fields: [registradoPorId], references: [id])
+
+  fecha     DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, reparacionId])
+  @@index([tenantId, fecha])
+  @@map("pagos_reparacion")
 }

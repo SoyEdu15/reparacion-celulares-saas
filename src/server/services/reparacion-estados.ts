@@ -1,6 +1,7 @@
-import type { CanalAprobacion, EstadoReparacion } from '@prisma/client';
+import type { CanalAprobacion, EstadoReparacion, MetodoPago } from '@prisma/client';
 import { withTenant } from '@/lib/rls';
 import { uploadFoto } from '@/lib/storage/r2';
+import { registrarCobroEntrega } from './pagos-reparacion';
 
 const TRANSICIONES_VALIDAS: Record<string, EstadoReparacion[]> = {
   ESPERANDO_TECNICO: ['DIAGNOSTICO', 'NO_REPARABLE', 'CANCELADO'],
@@ -101,41 +102,6 @@ export async function asignarTecnico(tenantId: string, reparacionId: string, usu
         notaCorta: `Asignado a ${tecnico.nombre}`,
       },
     });
-    return actualizada;
-  });
-}
-
-const ESTADOS_CERRADOS = new Set(['ENTREGADO', 'NO_REPARABLE', 'CANCELADO']);
-
-/**
- * Anticipo (abono): el cliente puede dejarlo en el ingreso o agregarlo/
- * actualizarlo después, mientras la orden siga activa. Se descuenta del
- * total en la factura final (ver entregarReparacion) — nunca es un pago
- * completo por sí solo.
- */
-export async function registrarAnticipo(tenantId: string, reparacionId: string, usuarioId: string, anticipo: number) {
-  return withTenant(tenantId, async (tx) => {
-    const actual = await tx.reparacion.findUniqueOrThrow({ where: { id: reparacionId } });
-    if (ESTADOS_CERRADOS.has(actual.estado)) {
-      throw new Error('No se puede registrar un anticipo en una orden ya cerrada');
-    }
-
-    const actualizada = await tx.reparacion.update({
-      where: { id: reparacionId },
-      data: { anticipo },
-    });
-
-    await tx.historialEstado.create({
-      data: {
-        tenantId,
-        reparacionId,
-        estadoAnterior: actual.estado,
-        estadoNuevo: actual.estado,
-        usuarioId,
-        notaCorta: `Anticipo actualizado a ${anticipo.toLocaleString('es-CO')} COP`,
-      },
-    });
-
     return actualizada;
   });
 }
@@ -299,7 +265,7 @@ export async function entregarReparacion(
   tenantId: string,
   reparacionId: string,
   usuarioId: string,
-  data: { notaCorta: string | null; fotos: File[] },
+  data: { notaCorta: string | null; fotos: File[]; metodoPago: MetodoPago },
 ) {
   const resultado = await withTenant(tenantId, async (tx) => {
     const actual = await tx.reparacion.findUniqueOrThrow({ where: { id: reparacionId } });
@@ -351,6 +317,17 @@ export async function entregarReparacion(
     });
     const cargoBodegaje = diasBodegajeCobrados * tenant.tarifaBodegajeDiaria;
 
+    // Lo que el cliente paga al recoger (total − abonos) queda como un pago
+    // con su método, para la caja del día.
+    const total = subtotalReparacion + cargoBodegaje;
+    const { yaPagado } = await registrarCobroEntrega(tx, {
+      tenantId,
+      reparacionId,
+      usuarioId,
+      total,
+      metodoPago: data.metodoPago,
+    });
+
     const factura = await tx.factura.create({
       data: {
         tenantId,
@@ -361,8 +338,8 @@ export async function entregarReparacion(
         subtotalReparacion,
         cargoBodegaje,
         diasBodegajeCobrados,
-        anticipo: reparacion.anticipo,
-        total: subtotalReparacion + cargoBodegaje,
+        anticipo: Math.max(0, Math.min(yaPagado, total)),
+        total,
       },
     });
 

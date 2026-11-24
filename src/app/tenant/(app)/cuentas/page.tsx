@@ -14,7 +14,7 @@ import { PeriodoFiltro } from '@/components/tenant/periodo-filtro';
 
 const TIPO_MOV_LABELS: Record<string, string> = {
   VENTA: 'Venta',
-  FACTURA: 'Reparación entregada',
+  PAGO_REPARACION: 'Pago reparación',
   GASTO: 'Gasto',
   COSTO_REPARACION: 'Costo reparación',
   COMPRA: 'Compra mercancía',
@@ -85,7 +85,7 @@ export default async function CuentasPage({
         <div className="kpi">
           <span>Ingresos</span>
           <strong>{formatoCOP(r.ingresos)}</strong>
-          <small>Ventas + reparaciones entregadas</small>
+          <small>Ventas + reparaciones entregadas · en caja: {formatoCOP(r.caja.total)}</small>
         </div>
         <div className="kpi">
           <span>Costo de lo vendido</span>
@@ -189,23 +189,57 @@ export default async function CuentasPage({
         </div>
 
         <div className="card">
-          <h2>Caja (ventas de mostrador)</h2>
+          <h2>Caja (plata que entró)</h2>
           {r.metodos.length === 0 ? (
-            <p className="empty-state">Sin ventas de mostrador.</p>
+            <p className="empty-state">No entró plata en el período.</p>
           ) : (
             <table className="data-table">
               <tbody>
+                <tr>
+                  <td>Ventas de mostrador</td>
+                  <td className="num">{formatoCOP(r.caja.ventasMostrador)}</td>
+                </tr>
+                <tr>
+                  <td>Abonos de reparaciones</td>
+                  <td className="num">{formatoCOP(r.caja.abonos)}</td>
+                </tr>
+                <tr>
+                  <td>Pagos al entregar</td>
+                  <td className="num">{formatoCOP(r.caja.saldos)}</td>
+                </tr>
+                {r.caja.devoluciones > 0 ? (
+                  <tr>
+                    <td>− Devoluciones a clientes</td>
+                    <td className="num texto-danger">{formatoCOP(r.caja.devoluciones)}</td>
+                  </tr>
+                ) : null}
+                <tr className="fila-total">
+                  <td>
+                    <strong>Total en caja</strong>
+                  </td>
+                  <td className="num">
+                    <strong>{formatoCOP(r.caja.total)}</strong>
+                  </td>
+                </tr>
                 {r.metodos.map((m) => (
                   <tr key={m.metodo}>
-                    <td>
-                      {METODO_PAGO_LABELS[m.metodo]} <small style={{ color: 'var(--text-muted)' }}>({m.cantidad})</small>
+                    <td style={{ paddingLeft: 20, color: 'var(--text-muted)' }}>
+                      {METODO_PAGO_LABELS[m.metodo]} <small>({m.cantidad})</small>
                     </td>
-                    <td className="num">{formatoCOP(m.total)}</td>
+                    <td className="num" style={{ color: 'var(--text-muted)' }}>
+                      {formatoCOP(m.total)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
+          {r.caja.abonosOrdenesAbiertas > 0 ? (
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: '12px 0 0' }}>
+              {formatoCOP(r.caja.abonosOrdenesAbiertas)} son abonos de equipos que todavía no se entregan: ya están en
+              caja, pero la ganancia se cuenta el día de la entrega.
+            </p>
+          ) : null}
           <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: '12px 0 0' }}>
             Compras de mercancía en el período: <strong>{formatoCOP(r.comprasMercancia)}</strong> (no restan de la
             ganancia: pasan a ser inventario).
@@ -219,6 +253,12 @@ export default async function CuentasPage({
           {r.costosSinCobro > 0 ? (
             <p style={{ color: 'var(--danger)', fontSize: '0.75rem', margin: '6px 0 0' }}>
               Incluye {formatoCOP(r.costosSinCobro)} perdidos en reparaciones que no se pudieron hacer o se cancelaron.
+            </p>
+          ) : null}
+          {r.abonosRetenidos > 0 ? (
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: '6px 0 0' }}>
+              Los ingresos incluyen {formatoCOP(r.abonosRetenidos)} de abonos que se quedaron en órdenes cerradas sin
+              reparar.
             </p>
           ) : null}
         </div>

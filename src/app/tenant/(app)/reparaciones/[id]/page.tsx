@@ -5,10 +5,13 @@ import { listarUsuarios } from '@/server/services/usuarios';
 import { decryptPin } from '@/lib/crypto/pin-encryption';
 import { ESTADO_LABELS, badgeClassParaEstado } from '@/lib/estados-reparacion';
 import { CostosReparacion } from '@/components/tenant/costos-reparacion';
+import { PagosReparacion } from '@/components/tenant/pagos-reparacion';
+import { listarPagosDeReparacion } from '@/server/services/pagos-reparacion';
+import { withTenant } from '@/lib/rls';
+import { METODO_PAGO_LABELS } from '@/lib/cuentas-labels';
 import {
   tomarEquipoAction,
   asignarTecnicoAction,
-  registrarAnticipoAction,
   completarDiagnosticoAction,
   registrarAprobacionAction,
   avanzarEstadoAction,
@@ -44,6 +47,16 @@ export default async function ReparacionDetallePage({
   if (!reparacion) {
     notFound();
   }
+
+  const [pagos, factura] = await Promise.all([
+    listarPagosDeReparacion(session.user.tenantId, reparacion.id),
+    withTenant(session.user.tenantId, (tx) =>
+      tx.factura.findFirst({ where: { reparacionId: reparacion.id }, orderBy: { createdAt: 'desc' }, select: { total: true } }),
+    ),
+  ]);
+  const pagado = pagos.reduce((s, p) => s + (p.tipo === 'DEVOLUCION' ? -p.monto : p.monto), 0);
+  const presupuesto = reparacion.presupuestoFinal ?? reparacion.presupuestoEstimado;
+  const totalACobrar = factura?.total ?? presupuesto;
 
   const tecnicos =
     reparacion.estado === 'ESPERANDO_TECNICO'
@@ -111,8 +124,10 @@ export default async function ReparacionDetallePage({
             <p>{formatoCOP(reparacion.presupuestoFinal)}</p>
           </div>
           <div>
-            <strong>Anticipo</strong>
-            <p>{formatoCOP(reparacion.anticipo)}</p>
+            <strong>Pagado por el cliente</strong>
+            <p>
+              <a href="#pagos">{formatoCOP(pagado)}</a>
+            </p>
           </div>
         </div>
       </div>
@@ -168,24 +183,14 @@ export default async function ReparacionDetallePage({
         )}
       </div>
 
-      {!ESTADOS_TERMINALES.has(reparacion.estado) ? (
-        <div className="card">
-          <h2>Anticipo</h2>
-          <p style={{ marginTop: 0 }}>
-            Anticipo actual: <strong>{formatoCOP(reparacion.anticipo)}</strong>
-          </p>
-          <form action={registrarAnticipoAction} className="form-grid">
-            <input type="hidden" name="reparacionId" value={reparacion.id} />
-            <label className="form-field">
-              Nuevo monto del anticipo (COP)
-              <input type="number" name="anticipo" min={0} step={1000} defaultValue={reparacion.anticipo} />
-            </label>
-            <button type="submit" className="btn btn-secondary" style={{ alignSelf: 'end' }}>
-              Actualizar anticipo
-            </button>
-          </form>
-        </div>
-      ) : null}
+      <PagosReparacion
+        reparacionId={reparacion.id}
+        estado={reparacion.estado}
+        pagos={pagos}
+        totalACobrar={totalACobrar}
+        totalEsFinal={factura != null}
+        esDueno={session.user.rol === 'DUENO'}
+      />
 
       <div className="card">
         <h2>Acciones</h2>
@@ -292,6 +297,31 @@ export default async function ReparacionDetallePage({
         {reparacion.estado === 'LISTO_PARA_ENTREGA' ? (
           <form action={entregarAction} className="form-grid">
             <input type="hidden" name="reparacionId" value={reparacion.id} />
+            <p style={{ gridColumn: '1 / -1', margin: 0 }}>
+              {presupuesto != null ? (
+                presupuesto - pagado > 0 ? (
+                  <>
+                    El cliente paga ahora: <strong>{formatoCOP(presupuesto - pagado)}</strong>
+                    {pagado > 0 ? <> (ya abonó {formatoCOP(pagado)})</> : null}. Si se pasó de los días de custodia
+                    gratis, se le suma el bodegaje.
+                  </>
+                ) : (
+                  <>Ya pagó todo ({formatoCOP(pagado)}).</>
+                )
+              ) : (
+                <>Esta orden no tiene presupuesto: se entrega sin cobro.</>
+              )}
+            </p>
+            <label className="form-field">
+              ¿Cómo paga lo que falta?
+              <select name="metodoPago" defaultValue="EFECTIVO">
+                {Object.entries(METODO_PAGO_LABELS).map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="form-field" style={{ gridColumn: '1 / -1' }}>
               Nota (opcional)
               <input name="notaCorta" maxLength={200} />
@@ -349,7 +379,7 @@ export default async function ReparacionDetallePage({
         <CostosReparacion
           tenantId={session.user.tenantId}
           reparacionId={reparacion.id}
-          presupuesto={reparacion.presupuestoFinal ?? reparacion.presupuestoEstimado}
+          presupuesto={presupuesto}
         />
       ) : null}
 

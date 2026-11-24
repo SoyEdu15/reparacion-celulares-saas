@@ -109,3 +109,15 @@ export const costoReparacionSchema = z
     message: 'Describe el costo (ej. "Pantalla comprada en el centro")',
     path: ['descripcion'],
   });
+
+const metodoPago = z.enum(['EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'OTRO'], { message: 'Elige cómo pagó' });
+
+/** Abono del cliente a una orden, o devolución si la orden se cerró sin repararse. */
+export const pagoReparacionSchema = z.object({
+  reparacionId: z.string().uuid(),
+  monto: pesos.refine((v) => v > 0, 'Escribe el monto'),
+  metodoPago,
+  nota: textoOpcional(200),
+});
+
+export const metodoPagoSchema = metodoPago;
