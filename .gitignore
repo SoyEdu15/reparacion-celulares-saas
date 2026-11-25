@@ -38,3 +38,6 @@ next-env.d.ts
 _verify-*.ts
 _reshot-*.ts
 scripts/_tmp-*.ts
+
+# Video de presentación (binario pesado, no va al repo)
+/presentacion/
