@@ -181,6 +181,14 @@ model Tenant {
   piePaginaFactura        String?          @map("pie_pagina_factura") @db.Text
   remitenteEmailFacturas  String?          @map("remitente_email_facturas")
 
+  // Aceptación de los documentos legales (Términos, Privacidad y Acuerdo de
+  // Tratamiento de Datos) por el dueño. Se guarda la versión aceptada como
+  // prueba (Ley 527 de 1999); si LEGAL_VERSION sube, se vuelve a pedir.
+  terminosVersionAceptada String?   @map("terminos_version_aceptada")
+  terminosAceptadosEn     DateTime? @map("terminos_aceptados_en")
+  terminosAceptadosPorId  String?   @map("terminos_aceptados_por_id")
+  terminosAceptadosIp     String?   @map("terminos_aceptados_ip")
+
   // Contadores para numeración consecutiva por tenant (ver nota de arquitectura #3)
   ultimoNumeroOrden   Int @default(0) @map("ultimo_numero_orden")
   ultimoNumeroFactura Int @default(0) @map("ultimo_numero_factura")

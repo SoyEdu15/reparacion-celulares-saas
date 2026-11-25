@@ -50,6 +50,10 @@ export default async function LoginPage({
           </label>
           <button type="submit">Entrar</button>
         </form>
+        <p className="auth-legal">
+          <a href="/legal/terminos">Términos</a> · <a href="/legal/privacidad">Privacidad</a> ·{' '}
+          <a href="/legal/politica-datos">Política de datos</a>
+        </p>
       </div>
     </main>
   );

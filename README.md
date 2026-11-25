@@ -1,6 +1,6 @@
 # Reparación de Celulares — SaaS multi-tenant
 
-> **Beta 3** (`v0.1.0-beta.3`) — en desarrollo activo. La pasarela de pagos y la integración real de WhatsApp Business todavía no están conectadas (ver [Estado del proyecto](#estado-del-proyecto--roadmap)). Ver todas las versiones en [Releases](https://github.com/SoyEdu15/reparacion-celulares-saas/releases).
+> **Beta 1.05** (`v0.1.0-beta.6`) — en desarrollo activo. La pasarela de pagos y la integración real de WhatsApp Business todavía no están conectadas (ver [Estado del proyecto](#estado-del-proyecto--roadmap)). Ver todas las versiones en [Releases](https://github.com/SoyEdu15/reparacion-celulares-saas/releases).
 
 **Patrocinador oficial: E-TECH** — [@eduard.tech](https://www.instagram.com/eduard.tech) en Instagram y TikTok.
 
@@ -16,6 +16,7 @@ Plataforma SaaS para talleres de reparación de celulares en Colombia. Cada tall
 - [Scripts disponibles](#scripts-disponibles)
 - [Seguridad](#seguridad)
 - [Estado del proyecto / Roadmap](#estado-del-proyecto--roadmap)
+- [Documentación y documentos legales](#documentación-y-documentos-legales)
 - [Licencia](#licencia)
 
 ## Características
@@ -33,7 +34,8 @@ Plataforma SaaS para talleres de reparación de celulares en Colombia. Cada tall
 - **Ventas, inventario y cuentas del local**: ventas de mostrador (accesorios, repuestos y reparaciones rápidas sin orden) con descuento automático de stock; inventario con precio de compra, precio de venta, costo promedio ponderado y alertas de stock mínimo; costos de cada reparación (repuesto del inventario o comprado aparte, transporte, insumos) para ver su ganancia real; gastos generales del local; y un resumen por día/semana/mes con ingresos por tipo, costo de lo vendido, gastos y ganancia real.
 - **Abonos y caja del día**: cada abono del cliente queda como un pago con fecha y método (efectivo, transferencia, tarjeta), puede haber varios por orden y la orden muestra cuánto falta; al entregar se registra el pago del saldo. La caja del día suma ventas de mostrador, abonos y pagos de reparaciones (menos devoluciones), y la ganancia de la reparación se sigue contando completa el día de la entrega.
 - **Reportes exportables a CSV** (reparaciones, clientes, facturas), con BOM para que Excel no rompa los acentos.
-- **Habeas Data**: consentimiento explícito de tratamiento de datos personales conforme a la Ley 1581 de 2012.
+- **Habeas Data**: consentimiento explícito de tratamiento de datos personales conforme a la Ley 1581 de 2012, con enlace a la política de datos de cada taller, que se genera sola con sus datos.
+- **Documentos legales listos para vender**: Términos y Condiciones, Política de Privacidad, Acuerdo de Tratamiento de Datos (contrato de transmisión), SLA y Política de Cookies, publicados en `/legal/...` y con aceptación electrónica obligatoria del dueño de cada taller (se guardan la versión, la fecha, el usuario y la IP).
 
 ## Stack
 
@@ -190,6 +192,13 @@ Este proyecto está en **beta**. Ya funciona de punta a punta en local (multi-te
 - [ ] Credenciales reales de WhatsApp Business API (hoy corre con un stub que deja todo el pipeline listo)
 - [ ] Envío de correo con credenciales propias por tenant (hoy sale desde un remitente compartido de la plataforma)
 - [ ] Despliegue a un dominio real con proveedor de email transaccional verificado
+
+## Documentación y documentos legales
+
+- [Manual de usuario](docs/manual-de-usuario.md): para dueños y técnicos.
+- [Documentación técnica](docs/documentacion-tecnica.md): modelo de datos, seguridad, despliegue, respaldos y solución de problemas.
+- [Documentos legales](docs/legal/README.md): la fuente de las páginas `/legal/...`, con las variables `PLATFORM_LEGAL_*` que hay que completar.
+- [Trámites para empezar a vender](docs/legal/checklist-para-vender.md).
 
 ## Patrocinador oficial
 

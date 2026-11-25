@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireSuperAdmin } from '@/lib/auth/admin-guards';
 import { obtenerTenant } from '@/server/services/admin-tenants';
+import { LEGAL_VERSION } from '@/lib/legal';
 import { cambiarEstadoAction, crearDuenoAction, restablecerPasswordAction } from '../actions';
 
 function formatoFecha(fecha: Date): string {
@@ -43,6 +44,21 @@ export default async function TenantDetallePage({
         <h2>Estado de la suscripción</h2>
         <p>
           Estado actual: <strong>{tenant.estado}</strong>
+        </p>
+        <p style={{ fontSize: '0.875rem' }}>
+          Documentos legales:{' '}
+          {tenant.terminosVersionAceptada ? (
+            <>
+              <strong>v{tenant.terminosVersionAceptada}</strong> aceptada el{' '}
+              {formatoFecha(tenant.terminosAceptadosEn!)}
+              {tenant.terminosAceptadosIp ? ` desde la IP ${tenant.terminosAceptadosIp}` : ''}
+              {tenant.terminosVersionAceptada !== LEGAL_VERSION ? (
+                <span className="texto-alerta"> · falta aceptar la v{LEGAL_VERSION}</span>
+              ) : null}
+            </>
+          ) : (
+            <span className="texto-alerta">el dueño todavía no los ha aceptado</span>
+          )}
         </p>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
           <a href={urlTenant} target="_blank" rel="noreferrer">

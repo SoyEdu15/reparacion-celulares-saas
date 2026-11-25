@@ -281,7 +281,14 @@ export default async function IngresoPage({
 
         <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: '0.875rem', marginBottom: 20 }}>
           <input type="checkbox" name="consentimientoDatos" required style={{ marginTop: 3 }} />
-          El cliente autoriza el tratamiento de sus datos personales conforme a la Ley 1581 de 2012 (Habeas Data)
+          <span>
+            El cliente autoriza el tratamiento de sus datos personales conforme a la Ley 1581 de 2012 (Habeas Data) y a
+            la{' '}
+            <a href="/legal/politica-datos" target="_blank" rel="noreferrer">
+              política de tratamiento de datos del taller
+            </a>
+            , que se le informó.
+          </span>
         </label>
 
         <button type="submit" className="btn btn-primary">
