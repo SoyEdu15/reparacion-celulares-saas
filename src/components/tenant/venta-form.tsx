@@ -110,24 +110,25 @@ export function VentaForm({
                 {idx === 0 ? 'Producto' : <span className="sr-only">Producto</span>}
                 <select value={l.productoId} onChange={(e) => elegirProducto(l.key, e.target.value)}>
                   <option value="">— Otro / no está en inventario —</option>
-                  <optgroup label="Accesorios">
-                    {productos
-                      .filter((p) => p.categoria === 'ACCESORIO')
-                      .map((p) => (
-                        <option key={p.id} value={p.id} disabled={p.stock <= 0}>
-                          {p.nombre} {p.codigo ? `[${p.codigo}]` : ''} — {p.stock} disp.
-                        </option>
-                      ))}
-                  </optgroup>
-                  <optgroup label="Repuestos">
-                    {productos
-                      .filter((p) => p.categoria === 'REPUESTO')
-                      .map((p) => (
-                        <option key={p.id} value={p.id} disabled={p.stock <= 0}>
-                          {p.nombre} {p.codigo ? `[${p.codigo}]` : ''} — {p.stock} disp.
-                        </option>
-                      ))}
-                  </optgroup>
+                  {/* Solo los grupos que tienen productos: un grupo vacío se ve como una opción que no se puede elegir. */}
+                  {(
+                    [
+                      ['ACCESORIO', 'Accesorios'],
+                      ['REPUESTO', 'Repuestos'],
+                    ] as const
+                  ).map(([categoria, etiqueta]) => {
+                    const delGrupo = productos.filter((p) => p.categoria === categoria);
+                    if (delGrupo.length === 0) return null;
+                    return (
+                      <optgroup key={categoria} label={etiqueta}>
+                        {delGrupo.map((p) => (
+                          <option key={p.id} value={p.id} disabled={p.stock <= 0}>
+                            {p.nombre} {p.codigo ? `[${p.codigo}]` : ''} — {p.stock} disp.
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
                 </select>
               </label>
 
