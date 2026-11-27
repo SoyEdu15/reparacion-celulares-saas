@@ -25,7 +25,7 @@ export default async function ConfiguracionPage({
 
       <div className="card">
         <h2>Logo</h2>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+        <div className="logo-config" style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           {tenant.logoPreviewUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img

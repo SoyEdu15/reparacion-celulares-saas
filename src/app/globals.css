@@ -1091,3 +1091,76 @@ table.data-table {
   font-size: 0.75rem;
 }
 .app-footer a { color: var(--text-muted); }
+
+/* ------------------------------------------------------------------------ */
+/* Menú y vistas de celular / tablet                                        */
+/* ------------------------------------------------------------------------ */
+.app-nav-enlaces {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+}
+.app-nav a.activo { color: var(--primary); font-weight: 600; }
+.app-nav-toggle { display: none; }
+.app-nav { position: sticky; top: 0; z-index: 20; }
+.filtros-estado { display: flex; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 760px) {
+  .app-nav { gap: 10px; padding: 10px 14px; }
+  .app-nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card-bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .app-nav-enlaces { display: none; order: 3; width: 100%; }
+  .app-nav-abierto .app-nav-enlaces {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 12px;
+    padding: 6px 0 4px;
+    border-top: 1px solid var(--border);
+  }
+  .app-nav-enlaces a { padding: 10px 4px; font-size: 0.9375rem; }
+  .app-nav-cuenta { gap: 8px; }
+  .app-nav-rol { display: none; }
+  .app-nav-user { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Tablas: se deslizan de lado dentro de su tarjeta en vez de salirse. */
+  .data-table:not(.tabla-scroll .data-table) {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .data-table th, .data-table td { white-space: nowrap; }
+  .data-table td:has(> div), .data-table td:has(> small) { white-space: normal; min-width: 180px; }
+
+  /* Filtros por estado: una fila que se desliza, no seis renglones de botones. */
+  .filtros-estado { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+  .filtros-estado .btn { flex-shrink: 0; }
+
+  select, input, textarea { max-width: 100%; }
+  .card { min-width: 0; }
+  .logo-config, .logo-config form { flex-wrap: wrap; }
+
+  /* Botones y campos cómodos para el dedo. */
+  .btn { min-height: 40px; }
+  .btn-sm { min-height: 34px; }
+}
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  .app-nav { padding: 12px 18px; gap: 8px 14px; }
+  .app-nav-enlaces { gap: 8px 14px; }
+}
+
+.venta-linea .form-field { min-width: 0; }
+.venta-linea select { width: 100%; min-width: 0; }

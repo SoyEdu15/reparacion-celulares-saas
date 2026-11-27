@@ -5,13 +5,20 @@ import { dbAdmin } from '@/lib/db';
 import { withTenant } from '@/lib/rls';
 import { checkRateLimit } from '@/lib/rate-limit';
 
-function resolveSubdominio(host: string | null): string | null {
+function resolveSubdominio(host: string | null, cookie: string | null): string | null {
   const hostname = (host ?? '').split(':')[0] ?? '';
   const rootDomain = (process.env.PLATFORM_ROOT_DOMAIN ?? 'localhost:3000').split(':')[0];
   const suffix = `.${rootDomain}`;
-  if (!hostname.endsWith(suffix)) return null;
-  const subdominio = hostname.slice(0, -suffix.length);
-  return subdominio && !subdominio.includes('.') ? subdominio : null;
+  if (hostname.endsWith(suffix)) {
+    const subdominio = hostname.slice(0, -suffix.length);
+    return subdominio && !subdominio.includes('.') ? subdominio : null;
+  }
+  if (hostname === rootDomain || hostname === 'localhost' || hostname === '127.0.0.1') return null;
+  // Modo dominio único (túnel, ver src/proxy.ts): el taller viene de la cookie
+  // que deja el enlace `?taller=`. Igual que con el subdominio, solo elige a
+  // qué taller se intenta entrar; las credenciales se validan contra ese taller.
+  const m = /(?:^|;\s*)taller=([a-z0-9-]{1,63})(?:;|$)/.exec(cookie ?? '');
+  return m?.[1] ?? null;
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -43,7 +50,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // Se re-deriva del Host de la request, igual que en el middleware —
         // es la misma resolución del Paso 1, hecha de nuevo del lado del
         // servidor para no confiar en nada que haya viajado desde el form.
-        const subdominio = resolveSubdominio(request.headers.get('host'));
+        const subdominio = resolveSubdominio(request.headers.get('host'), request.headers.get('cookie'));
         if (!subdominio) return null;
 
         const tenant = await dbAdmin.tenant.findUnique({ where: { subdominio } });

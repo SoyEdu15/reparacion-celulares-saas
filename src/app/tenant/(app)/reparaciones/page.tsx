@@ -22,7 +22,7 @@ export default async function ReparacionesPage({
       </div>
 
       <div className="card">
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: reparaciones.length ? 16 : 0 }}>
+        <div className="filtros-estado" style={{ marginBottom: reparaciones.length ? 16 : 0 }}>
           <a href="/reparaciones" className={`btn ${!estado ? 'btn-primary' : 'btn-secondary'}`}>
             Todas
           </a>

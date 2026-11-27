@@ -43,10 +43,14 @@ export async function presignFotoUpload(key: string, contentType: string): Promi
   return getSignedUrl(client, command, { expiresIn: 300 });
 }
 
-/** URL firmada de lectura (GET), corta duración — se genera al vuelo para previsualizar. */
+/**
+ * URL para ver una foto en la app. Pasa por /media/foto (ver
+ * app/tenant/media/[tipo]/route.ts), que revisa la sesión y descarga del
+ * almacenamiento: el bucket nunca queda expuesto y funciona desde cualquier
+ * dominio, también por un túnel hacia un servidor local.
+ */
 export async function presignFotoView(key: string): Promise<string> {
-  const command = new GetObjectCommand({ Bucket: BUCKET_FOTOS, Key: key });
-  return getSignedUrl(client, command, { expiresIn: 300 });
+  return `/media/foto?k=${encodeURIComponent(key)}`;
 }
 
 /**
@@ -83,9 +87,9 @@ export async function uploadLogo(tenantId: string, file: File): Promise<string> 
   return key;
 }
 
+/** URL para ver el logo del taller en la app (ver presignFotoView). */
 export async function presignLogoView(key: string): Promise<string> {
-  const command = new GetObjectCommand({ Bucket: BUCKET_COMPROBANTES, Key: key });
-  return getSignedUrl(client, command, { expiresIn: 300 });
+  return `/media/logo?k=${encodeURIComponent(key)}`;
 }
 
 /**

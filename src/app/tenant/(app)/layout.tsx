@@ -18,10 +18,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   }
   // El dueño firma el contrato del taller: hasta que acepte la versión vigente
   // de los documentos legales no puede usar la app (los técnicos no firman).
-  if (session.user.rol === 'DUENO') {
-    const tenant = await getCurrentTenant();
-    if (tenant && !terminosAlDia(tenant)) redirect('/aceptar-terminos');
-  }
+  const tenant = await getCurrentTenant();
+  // La sesión es de otro taller (por ejemplo, el mismo navegador abrió el
+  // enlace de otro local): hay que volver a iniciar sesión en este.
+  if (tenant && session.user.tenantId !== tenant.id) redirect('/login');
+  if (session.user.rol === 'DUENO' && tenant && !terminosAlDia(tenant)) redirect('/aceptar-terminos');
   return (
     <div className="app-shell">
       <AppNav />

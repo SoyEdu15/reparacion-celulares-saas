@@ -41,3 +41,8 @@ scripts/_tmp-*.ts
 
 # Video de presentación (binario pesado, no va al repo)
 /presentacion/
+
+# Servidor de pruebas local: binarios y registros
+/servidor-pruebas/bin/
+/servidor-pruebas/logs/
+/servidor-pruebas/ENLACES.txt

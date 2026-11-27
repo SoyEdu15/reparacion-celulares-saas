@@ -1,31 +1,40 @@
 import Link from 'next/link';
 import { auth, signOut } from '@/lib/auth/tenant-auth';
+import { AppNavMenu, type EnlaceNav } from './app-nav-menu';
 
 export async function AppNav() {
   const session = await auth();
+  const esDueno = session?.user.rol === 'DUENO';
 
   async function logout() {
     'use server';
     await signOut({ redirectTo: '/login' });
   }
 
+  const enlaces: EnlaceNav[] = [
+    { href: '/dashboard', label: 'Inicio' },
+    { href: '/ingreso', label: 'Nuevo ingreso' },
+    { href: '/reparaciones', label: 'Reparaciones' },
+    { href: '/clientes', label: 'Clientes' },
+    { href: '/equipos', label: 'Equipos' },
+    { href: '/ventas', label: 'Ventas' },
+    ...(esDueno
+      ? [
+          { href: '/inventario', label: 'Inventario' },
+          { href: '/gastos', label: 'Gastos' },
+          { href: '/cuentas', label: 'Cuentas' },
+          { href: '/tecnicos', label: 'Técnicos' },
+          { href: '/configuracion', label: 'Configuración' },
+          { href: '/reportes', label: 'Reportes' },
+        ]
+      : []),
+  ];
+
   return (
-    <nav className="app-nav">
-      <Link href="/dashboard">Inicio</Link>
-      <Link href="/ingreso">Nuevo ingreso</Link>
-      <Link href="/reparaciones">Reparaciones</Link>
-      <Link href="/clientes">Clientes</Link>
-      <Link href="/equipos">Equipos</Link>
-      <Link href="/ventas">Ventas</Link>
-      {session?.user.rol === 'DUENO' ? <Link href="/inventario">Inventario</Link> : null}
-      {session?.user.rol === 'DUENO' ? <Link href="/gastos">Gastos</Link> : null}
-      {session?.user.rol === 'DUENO' ? <Link href="/cuentas">Cuentas</Link> : null}
-      {session?.user.rol === 'DUENO' ? <Link href="/tecnicos">Técnicos</Link> : null}
-      {session?.user.rol === 'DUENO' ? <Link href="/configuracion">Configuración</Link> : null}
-      {session?.user.rol === 'DUENO' ? <Link href="/reportes">Reportes</Link> : null}
+    <AppNavMenu enlaces={enlaces}>
       <div className="app-nav-cuenta">
         <Link href="/perfil" className="app-nav-user">
-          {session?.user.name} ({session?.user.rol})
+          {session?.user.name} <span className="app-nav-rol">({session?.user.rol})</span>
         </Link>
         <form action={logout}>
           <button type="submit" className="btn btn-secondary">
@@ -33,6 +42,6 @@ export async function AppNav() {
           </button>
         </form>
       </div>
-    </nav>
+    </AppNavMenu>
   );
 }
