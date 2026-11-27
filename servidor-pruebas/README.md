@@ -2,9 +2,9 @@
 
 Publica la app gratis desde este PC con un túnel de Cloudflare (`https://<algo>.trycloudflare.com`), sin abrir puertos del router ni crear cuentas.
 
-- `iniciar.ps1`: levanta Docker, la app en modo producción, el worker de notificaciones y el túnel. Al final escribe los enlaces de cada taller en `ENLACES.txt` y en el Escritorio (`Enlaces del servidor.txt`).
-- `detener.ps1`: apaga la app, el worker y el túnel.
-- Arranca solo al iniciar sesión en Windows (`Servidor reparaciones.cmd` en la carpeta de Inicio). En el Escritorio queda un acceso directo, "Iniciar servidor de pruebas", para correrlo a mano.
+- `iniciar.ps1`: levanta Docker, la app en modo producción, el worker de notificaciones y el túnel, escribe los enlaces de cada taller en `ENLACES.txt` y en el Escritorio (`Enlaces del servidor.txt`), y **se queda vigilando**: cada minuto revisa cada pieza y levanta la que se haya caído (si el túnel se reinicia, actualiza los enlaces). Registro en `logs/vigilante.log`.
+- `instalar-tarea.ps1`: registra la tarea **"Servidor reparaciones"** en el Programador de tareas de Windows, que corre `iniciar.ps1` al iniciar sesión. Así el servidor no depende de ninguna ventana ni de la sesión que lo abrió (si se arranca desde una terminal, se apaga al cerrarla).
+- `detener.ps1`: apaga la app, el worker y el túnel (detén antes la tarea en el Programador de tareas, o el vigilante los vuelve a levantar).
 - `bin/cloudflared.exe`: versión portable oficial de Cloudflare (no se sube al repo).
 
 ## Cómo entra cada taller
