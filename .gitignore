@@ -46,3 +46,4 @@ scripts/_tmp-*.ts
 /servidor-pruebas/bin/
 /servidor-pruebas/logs/
 /servidor-pruebas/ENLACES.txt
+/servidor-pruebas/CLAVES.txt

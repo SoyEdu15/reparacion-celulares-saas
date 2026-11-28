@@ -1,22 +1,20 @@
-# Levanta el servidor de pruebas en este computador, lo publica por un tunel
-# gratuito de Cloudflare (https://<algo>.trycloudflare.com) y se queda
-# VIGILANDO: si se cae Docker, la app, el worker o el tunel, los vuelve a
-# levantar solo y actualiza los enlaces.
+﻿# Levanta el servidor de pruebas en este computador, lo publica en internet con
+# un enlace FIJO de Tailscale Funnel (https://<equipo>.<red>.ts.net) y se queda
+# VIGILANDO: si se cae Docker, la app, el worker o el Funnel, los vuelve a
+# levantar solo. La app, la base de datos, Redis y MinIO solo escuchan en este
+# equipo (localhost): desde internet solo se llega a la app, por el Funnel.
 #
 # Lo corre el Programador de tareas de Windows (tarea "Servidor reparaciones",
 # ver instalar-tarea.ps1), asi no depende de ninguna ventana ni sesion abierta.
 # A mano:  powershell -ExecutionPolicy Bypass -File servidor-pruebas\iniciar.ps1
 #
-# El enlace del tunel CAMBIA cada vez que el tunel se reinicia; los enlaces
-# vigentes siempre quedan en el Escritorio ("Enlaces del servidor.txt").
+# Los enlaces quedan en el Escritorio ("Enlaces del servidor.txt").
 
 $ErrorActionPreference = 'Continue'
 $raiz = Split-Path -Parent $PSScriptRoot
 $aqui = $PSScriptRoot
 $logs = Join-Path $aqui 'logs'
 New-Item -ItemType Directory -Force $logs | Out-Null
-$cloudflared = Join-Path $aqui 'bin\cloudflared.exe'
-$logTunel = Join-Path $logs 'tunel.log'
 $logVigia = Join-Path $logs 'vigilante.log'
 Set-Location $raiz
 
@@ -68,7 +66,7 @@ function ArrancarApp {
   Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue |
     ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
   Escribir 'Iniciando la app...'
-  Start-Process -WindowStyle Hidden -WorkingDirectory $raiz cmd.exe -ArgumentList '/c', "npm run start -- -p 3000 >> `"$logs\app.log`" 2>&1"
+  Start-Process -WindowStyle Hidden -WorkingDirectory $raiz cmd.exe -ArgumentList '/c', "npm run start -- -p 3000 -H localhost >> `"$logs\app.log`" 2>&1"
   $limite = (Get-Date).AddMinutes(3)
   do { Start-Sleep -Seconds 2 } until ((AppResponde) -or (Get-Date) -gt $limite)
   if (AppResponde) { Escribir 'App lista.' } else { Escribir "La app no respondio. Revisa $logs\app.log" }
@@ -83,26 +81,31 @@ function ArrancarWorker {
   Start-Process -WindowStyle Hidden -WorkingDirectory $raiz cmd.exe -ArgumentList '/c', "npx tsx scripts/worker.ts >> `"$logs\worker.log`" 2>&1"
 }
 
-function ArrancarTunel {
-  Get-Process cloudflared -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-  Escribir 'Abriendo el tunel de Cloudflare...'
-  Remove-Item $logTunel -ErrorAction SilentlyContinue
-  Start-Process -WindowStyle Hidden $cloudflared -ArgumentList 'tunnel', '--no-autoupdate', '--url', 'http://localhost:3000', '--logfile', "`"$logTunel`""
-  $limite = (Get-Date).AddMinutes(2)
-  while ((Get-Date) -lt $limite) {
-    Start-Sleep -Seconds 2
-    if (Test-Path $logTunel) {
-      $m = Select-String -Path $logTunel -Pattern 'https://[a-z0-9-]+\.trycloudflare\.com' | Select-Object -First 1
-      if ($m) { return $m.Matches[0].Value }
-    }
-  }
-  Escribir "No se obtuvo el enlace del tunel. Revisa $logTunel"
+# El enlace FIJO lo da Tailscale Funnel (https://<equipo>.<red>.ts.net). El
+# servicio de Tailscale arranca solo con Windows y recuerda la configuracion;
+# aqui solo se revisa que siga encendido.
+$tailscale = 'C:\Program Files\Tailscale\tailscale.exe'
+
+function UrlFija {
+  try {
+    $dns = (& $tailscale status --json 2>$null | ConvertFrom-Json).Self.DNSName
+    if ($dns) { return 'https://' + $dns.TrimEnd('.') }
+  } catch {}
   return $null
 }
 
-function TunelResponde($url) {
+function FunnelActivo {
+  return [bool]((& $tailscale funnel status 2>$null) -match 'Funnel on')
+}
+
+function ActivarFunnel {
+  Escribir 'Activando el enlace fijo (Tailscale Funnel)...'
+  $p = Start-Process $tailscale -ArgumentList 'funnel', '--bg', '--yes', 'http://localhost:3000' -WindowStyle Hidden -PassThru
+  if (-not $p.WaitForExit(60000)) { $p.Kill(); Escribir 'Tailscale no activo el Funnel (revisa que Tailscale tenga la sesion iniciada).' }
+}
+
+function EnlaceResponde($url) {
   if (-not $url) { return $false }
-  if (-not (Get-Process cloudflared -ErrorAction SilentlyContinue)) { return $false }
   try { return (Invoke-WebRequest -UseBasicParsing -Uri "$url/legal/sla" -TimeoutSec 15).StatusCode -eq 200 } catch { return $false }
 }
 
@@ -120,11 +123,10 @@ function EscribirEnlaces($url) {
     $texto += ('{0,-28} {1}/?taller={2}' -f $p[1], $url, $p[0])
   }
   $texto += ''
-  $texto += ('{0,-28} {1}/?panel=admin' -f 'Panel de administracion', $url)
+  $texto += 'Panel de administracion: SOLO desde este computador, en http://admin.localhost:3000'
+  $texto += '(por seguridad no se publica en internet).'
   $texto += ''
-  $texto += "Direccion base: $url"
-  $texto += 'IMPORTANTE: si el tunel se reinicia (por ejemplo al reiniciar el computador), el enlace'
-  $texto += 'cambia. Este archivo siempre tiene los enlaces vigentes.'
+  $texto += "Direccion base (fija, no cambia): $url"
   $texto | Set-Content -Encoding UTF8 (Join-Path $aqui 'ENLACES.txt')
   $texto | Set-Content -Encoding UTF8 (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Enlaces del servidor.txt')
   Escribir "Enlaces actualizados. Enlace base: $url"
@@ -149,36 +151,32 @@ if (-not (Test-Path (Join-Path $raiz '.next\BUILD_ID'))) {
 
 ArrancarApp
 ArrancarWorker
-# Si el tunel de una corrida anterior sigue vivo y responde, se conserva:
-# asi reiniciar este script NO cambia los enlaces.
-$url = $null
-if (Test-Path $logTunel) {
-  $m = Select-String -Path $logTunel -Pattern 'https://[a-z0-9-]+\.trycloudflare\.com' | Select-Object -First 1
-  if ($m -and (TunelResponde $m.Matches[0].Value)) { $url = $m.Matches[0].Value; Escribir "Se conserva el tunel actual: $url" }
-}
-if (-not $url) { $url = ArrancarTunel }
+# El tunel temporal de Cloudflare ya no se usa: una sola entrada desde internet.
+Get-Process cloudflared -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+if (-not (FunnelActivo)) { ActivarFunnel }
+$url = UrlFija
 if ($url) { EscribirEnlaces $url }
 
 # ---------------------------------------------------------------- Vigilancia
 # Cada minuto revisa cada pieza y levanta la que se haya caido.
-$fallosTunel = 0
+$fallosEnlace = 0
 while ($true) {
   Start-Sleep -Seconds 60
   MantenerDespierto
   if (-not (DockerListo)) { Escribir 'Docker se cayo.'; ArrancarDocker | Out-Null }
   if (-not (AppResponde)) { Escribir 'La app no responde.'; ArrancarApp }
   if (-not (WorkerVivo)) { Escribir 'El worker se cayo.'; ArrancarWorker }
-  if (TunelResponde $url) {
-    $fallosTunel = 0
+  if ((Get-Service Tailscale -ErrorAction SilentlyContinue).Status -ne 'Running') {
+    Escribir 'El servicio de Tailscale estaba detenido; se inicia.'
+    Start-Service Tailscale -ErrorAction SilentlyContinue
+  }
+  if (-not (FunnelActivo)) { ActivarFunnel }
+  if (-not $url) { $url = UrlFija; if ($url) { EscribirEnlaces $url } }
+  if (EnlaceResponde $url) {
+    if ($fallosEnlace -ge 3) { Escribir 'El enlace fijo volvio a responder.' }
+    $fallosEnlace = 0
   } else {
-    $fallosTunel++
-    # cloudflared se reconecta solo tras cortes cortos de internet; solo se abre un
-    # tunel nuevo (enlace nuevo) si lleva 10 minutos seguidos sin responder.
-    if ($fallosTunel -ge 10 -or -not (Get-Process cloudflared -ErrorAction SilentlyContinue)) {
-      Escribir 'El tunel no responde; se abre uno nuevo (el enlace cambia).'
-      $nuevo = ArrancarTunel
-      if ($nuevo) { $url = $nuevo; EscribirEnlaces $url }
-      $fallosTunel = 0
-    }
+    $fallosEnlace++
+    if ($fallosEnlace -eq 3) { Escribir 'El enlace fijo no responde desde hace 3 minutos (puede ser el internet). Se sigue revisando.' }
   }
 }

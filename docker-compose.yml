@@ -13,7 +13,7 @@ services:
       # escuchando en 5432 y se queda con las conexiones del host antes que
       # el contenedor. Todo el tráfico interno entre contenedores sigue
       # usando el 5432 normal (el mapeo solo afecta el acceso desde el host).
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -26,7 +26,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -44,8 +44,8 @@ services:
       MINIO_ROOT_USER: minio_local_admin
       MINIO_ROOT_PASSWORD: minio_local_pw
     ports:
-      - "9000:9000" # API S3
-      - "9001:9001" # consola web
+      - "127.0.0.1:9000:9000" # API S3
+      - "127.0.0.1:9001:9001" # consola web
     volumes:
       - minio_data:/data
     healthcheck:
@@ -73,8 +73,8 @@ services:
     image: maildev/maildev
     restart: unless-stopped
     ports:
-      - "1025:1025" # SMTP
-      - "1080:1080" # UI web
+      - "127.0.0.1:1025:1025" # SMTP
+      - "127.0.0.1:1080:1080" # UI web
 
 volumes:
   postgres_data:
