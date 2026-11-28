@@ -20,6 +20,12 @@ $logTunel = Join-Path $logs 'tunel.log'
 $logVigia = Join-Path $logs 'vigilante.log'
 Set-Location $raiz
 
+# Pide a Windows que no suspenda el equipo mientras este script viva
+# (ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED).
+Add-Type -Namespace Servidor -Name Energia -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint esFlags);'
+function MantenerDespierto { [Servidor.Energia]::SetThreadExecutionState([uint32]'0x80000041') | Out-Null }
+MantenerDespierto
+
 function Escribir($msg) {
   $linea = "[{0:yyyy-MM-dd HH:mm:ss}] {1}" -f (Get-Date), $msg
   Write-Host $linea
@@ -132,7 +138,6 @@ while (-not (ArrancarDocker)) { Start-Sleep -Seconds 30 }
 Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
   Where-Object { $_.CommandLine -match 'next (dev|start)|scripts[\\/]worker' } |
   ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-Get-Process cloudflared -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
 Escribir 'Aplicando migraciones pendientes...'
@@ -144,7 +149,14 @@ if (-not (Test-Path (Join-Path $raiz '.next\BUILD_ID'))) {
 
 ArrancarApp
 ArrancarWorker
-$url = ArrancarTunel
+# Si el tunel de una corrida anterior sigue vivo y responde, se conserva:
+# asi reiniciar este script NO cambia los enlaces.
+$url = $null
+if (Test-Path $logTunel) {
+  $m = Select-String -Path $logTunel -Pattern 'https://[a-z0-9-]+\.trycloudflare\.com' | Select-Object -First 1
+  if ($m -and (TunelResponde $m.Matches[0].Value)) { $url = $m.Matches[0].Value; Escribir "Se conserva el tunel actual: $url" }
+}
+if (-not $url) { $url = ArrancarTunel }
 if ($url) { EscribirEnlaces $url }
 
 # ---------------------------------------------------------------- Vigilancia
@@ -152,6 +164,7 @@ if ($url) { EscribirEnlaces $url }
 $fallosTunel = 0
 while ($true) {
   Start-Sleep -Seconds 60
+  MantenerDespierto
   if (-not (DockerListo)) { Escribir 'Docker se cayo.'; ArrancarDocker | Out-Null }
   if (-not (AppResponde)) { Escribir 'La app no responde.'; ArrancarApp }
   if (-not (WorkerVivo)) { Escribir 'El worker se cayo.'; ArrancarWorker }
@@ -159,8 +172,9 @@ while ($true) {
     $fallosTunel = 0
   } else {
     $fallosTunel++
-    # Dos fallos seguidos: el tunel gratuito a veces tarda; no se cambia el enlace por un tropiezo.
-    if ($fallosTunel -ge 2 -or -not (Get-Process cloudflared -ErrorAction SilentlyContinue)) {
+    # cloudflared se reconecta solo tras cortes cortos de internet; solo se abre un
+    # tunel nuevo (enlace nuevo) si lleva 10 minutos seguidos sin responder.
+    if ($fallosTunel -ge 10 -or -not (Get-Process cloudflared -ErrorAction SilentlyContinue)) {
       Escribir 'El tunel no responde; se abre uno nuevo (el enlace cambia).'
       $nuevo = ArrancarTunel
       if ($nuevo) { $url = $nuevo; EscribirEnlaces $url }
