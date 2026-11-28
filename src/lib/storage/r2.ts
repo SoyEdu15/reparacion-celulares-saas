@@ -24,6 +24,26 @@ const EXTENSION_POR_TIPO: Record<string, string> = {
   'image/webp': 'webp',
 };
 
+const TAMANO_MAXIMO = 10 * 1024 * 1024; // 10 MB, igual que el límite de las Server Actions
+
+/**
+ * El tipo que declara el navegador (file.type) lo controla quien sube el
+ * archivo. Aquí se revisan los primeros bytes reales: si no es de verdad un
+ * JPEG, PNG o WebP (por ejemplo, una página HTML disfrazada), se rechaza.
+ */
+function verificarImagen(buffer: Buffer, tipoDeclarado: string): void {
+  if (buffer.length === 0 || buffer.length > TAMANO_MAXIMO) {
+    throw new Error('La imagen está vacía o pesa más de 10 MB.');
+  }
+  const esJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  const esPng = buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const esWebp = buffer.subarray(0, 4).toString('latin1') === 'RIFF' && buffer.subarray(8, 12).toString('latin1') === 'WEBP';
+  const real = esJpeg ? 'image/jpeg' : esPng ? 'image/png' : esWebp ? 'image/webp' : null;
+  if (!real || real !== tipoDeclarado) {
+    throw new Error('El archivo no es una imagen JPG, PNG o WebP válida.');
+  }
+}
+
 export function buildFotoKey(tenantId: string, reparacionId: string, contentType: string): string {
   const ext = EXTENSION_POR_TIPO[contentType] ?? 'bin';
   return `${tenantId}/${reparacionId}/${randomUUID()}.${ext}`;
@@ -64,8 +84,9 @@ export async function uploadFoto(tenantId: string, reparacionId: string, file: F
   if (!CONTENT_TYPES_PERMITIDOS.has(file.type)) {
     throw new Error(`Tipo de archivo no permitido: ${file.type}`);
   }
-  const key = buildFotoKey(tenantId, reparacionId, file.type);
   const buffer = Buffer.from(await file.arrayBuffer());
+  verificarImagen(buffer, file.type);
+  const key = buildFotoKey(tenantId, reparacionId, file.type);
   await client.send(new PutObjectCommand({ Bucket: BUCKET_FOTOS, Key: key, Body: buffer, ContentType: file.type }));
   return key;
 }
@@ -83,6 +104,7 @@ export async function uploadLogo(tenantId: string, file: File): Promise<string> 
   const ext = EXTENSION_POR_TIPO[file.type] ?? 'bin';
   const key = `logos/${tenantId}/${randomUUID()}.${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
+  verificarImagen(buffer, file.type);
   await client.send(new PutObjectCommand({ Bucket: BUCKET_COMPROBANTES, Key: key, Body: buffer, ContentType: file.type }));
   return key;
 }

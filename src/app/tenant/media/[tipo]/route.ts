@@ -15,7 +15,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tipo
   const { tipo } = await params;
   const key = req.nextUrl.searchParams.get('k') ?? '';
   const tenant = await getCurrentTenant();
-  if (!tenant || !key) return new NextResponse(null, { status: 404 });
+  if (!tenant || !key || key.includes('..') || !/^[A-Za-z0-9/_.-]+$/.test(key) || key.length > 300) {
+    return new NextResponse(null, { status: 404 });
+  }
 
   let archivo: { buffer: Buffer; contentType: string } | null = null;
   if (tipo === 'logo') {
@@ -32,7 +34,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tipo
 
   return new NextResponse(new Uint8Array(archivo.buffer), {
     headers: {
-      'Content-Type': archivo.contentType,
+      // Solo se sirven imágenes; cualquier otra cosa se descarga, nunca se ejecuta.
+      'Content-Type': ['image/jpeg', 'image/png', 'image/webp'].includes(archivo.contentType)
+        ? archivo.contentType
+        : 'application/octet-stream',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; sandbox",
       'Cache-Control': tipo === 'logo' ? 'public, max-age=3600' : 'private, max-age=600',
     },
   });

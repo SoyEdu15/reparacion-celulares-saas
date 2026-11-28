@@ -16,6 +16,9 @@ Funnel da un solo dominio (sin subdominios), así que cada taller entra con su e
 
 - La app, Postgres, Redis, MinIO y Maildev escuchan **solo en localhost**: nadie de la red Wi-Fi ni de otra VPN puede conectarse a ellos. Desde internet solo se llega a la app, por el Funnel.
 - El **panel de super-admin no se publica**: solo abre desde este equipo en `http://admin.localhost:3000`. Un pedido que llega por un túnel (dominio no local o `X-Forwarded-For` con una IP de afuera) recibe 404. Las rutas internas `/admin/*` y `/tenant/*` tampoco se pueden abrir directo.
+- Encabezados de seguridad en todas las páginas (CSP, no se puede meter en un iframe, HSTS, nosniff) y sin `X-Powered-By`.
+- Las fotos y logos se revisan por su contenido real (JPG, PNG o WebP de verdad, máximo 10 MB): un archivo disfrazado de imagen se rechaza.
+- Probado con `node_modules/.cache/demo/atacar.cjs`: con la sesión de un taller no se puede ver órdenes ni fotos de otro, ni cambiar de taller con la cookie, ni falsificar el encabezado del taller.
 - Las contraseñas de ejemplo de `prisma/seed.ts` son públicas (el repo es público): en este servidor ya se cambiaron. Si se vuelve a correr el seed, hay que cambiarlas otra vez.
 
 ## Limitaciones

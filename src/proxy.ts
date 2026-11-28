@@ -28,12 +28,23 @@ import { NextRequest, NextResponse } from 'next/server';
 const COOKIE_TALLER = 'taller';
 const PANEL_ADMIN = '__admin';
 
+/** Copia los encabezados del pedido sin el del taller: ese solo lo pone este proxy. */
+function encabezadosLimpios(req: NextRequest): Headers {
+  const h = new Headers(req.headers);
+  h.delete('x-tenant-subdominio');
+  return h;
+}
+
 function reescribir(req: NextRequest, destino: 'tenant' | 'admin', subdominio?: string) {
   const url = req.nextUrl.clone();
   url.pathname = `/${destino}${req.nextUrl.pathname}`;
-  const res = NextResponse.rewrite(url);
-  if (subdominio) res.headers.set('x-tenant-subdominio', subdominio);
-  return res;
+  const h = encabezadosLimpios(req);
+  if (subdominio) h.set('x-tenant-subdominio', subdominio);
+  return NextResponse.rewrite(url, { request: { headers: h } });
+}
+
+function seguir(req: NextRequest) {
+  return NextResponse.next({ request: { headers: encabezadosLimpios(req) } });
 }
 
 const HOST_LOCAL = /^(localhost|127\.0\.0\.1|\[::1\]|[a-z0-9-]+\.localhost)$/;
@@ -87,7 +98,7 @@ export function proxy(req: NextRequest) {
 
   // Dominio raíz de la plataforma: página pública y documentos legales.
   if (hostname === rootDomain || hostname === 'localhost' || hostname === '127.0.0.1') {
-    return NextResponse.next();
+    return seguir(req);
   }
 
   // ---- Modo dominio único (túnel) ----
@@ -113,7 +124,7 @@ export function proxy(req: NextRequest) {
   if (elegido === PANEL_ADMIN) return externo ? noEncontrado() : reescribir(req, 'admin');
   if (elegido && /^[a-z0-9-]{1,63}$/.test(elegido)) return reescribir(req, 'tenant', elegido);
 
-  return NextResponse.next();
+  return seguir(req);
 }
 
 export const config = {
